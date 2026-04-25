@@ -10,10 +10,20 @@
   "sableprotect.not_owner": "You are not the owner of this claim.",
   "sableprotect.unclaim.confirm": "Are you sure you want to unclaim '%s'? Run /sp unclaim %1$s CONFIRM to proceed.",
   "sableprotect.unclaim.success": "Unclaimed '%s'.",
-  "sableprotect.info.unclaimed": "This sub-level is not claimed.",
+  "sableprotect.info.unclaimed": "Unclaimed",
   "sableprotect.debug.enabled": "Sable Protect debug mode enabled.",
   "sableprotect.debug.disabled": "Sable Protect debug mode disabled.",
   "sableprotect.claimuuid.invalid_uuid": "'%s' is not a valid UUID.",
   "sableprotect.claimuuid.not_found": "No sub-level found with UUID '%s'.",
-  "sableprotect.claimuuid.success": "Claimed as '%s' (owner: %s)."
+  "sableprotect.claimuuid.success": "Claimed as '%s' (owner: %s).",
+  "sableprotect.edit.renamed": "Renamed '%s' to '%s'.",
+  "sableprotect.edit.owner_changed": "Ownership of '%s' transferred to %s.",
+  "sableprotect.edit.member_added": "Added %s to '%s'.",
+  "sableprotect.edit.member_removed": "Removed %s from '%s'.",
+  "sableprotect.edit.already_owner": "That player is already the owner.",
+  "sableprotect.edit.already_member": "%s is already a member.",
+  "sableprotect.edit.not_a_member": "%s is not a member.",
+  "sableprotect.myclaims.none": "You have no claims.",
+  "sableprotect.myclaims.owned": "Owned:",
+  "sableprotect.myclaims.member_of": "Member of:"
 }

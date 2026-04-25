@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.claim.ClaimRole;
 import dev.aerodev.sableprotect.util.SubLevelLookup;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -89,13 +90,16 @@ public final class InfoCommand {
     }
 
     public static void sendInfoWindow(final ServerPlayer player, final UUID subLevelId, final ClaimData data) {
+        final ClaimRole role = data.getRole(player.getUUID());
+        final boolean isOwner = role == ClaimRole.OWNER;
+        final String name = data.getName();
         final String ownerName = resolvePlayerName(player, data.getOwner());
 
         player.displayClientMessage(Component.literal("----------------------------")
                 .withStyle(ChatFormatting.GRAY), false);
 
         // Name — click to copy sub-level UUID
-        player.displayClientMessage(Component.literal(data.getName())
+        player.displayClientMessage(Component.literal(name)
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GOLD)
                         .withBold(true)
@@ -107,27 +111,66 @@ public final class InfoCommand {
                                 Component.literal("Click to copy sub-level UUID")))),
                 false);
 
-        // Protection flags
-        player.displayClientMessage(formatFlag("Blocks", data.isBlocksProtected()), false);
-        player.displayClientMessage(formatFlag("Interactions", data.isInteractionsProtected()), false);
-        player.displayClientMessage(formatFlag("Inventories", data.isInventoriesProtected()), false);
+        // Protection flags — clickable toggles for owner, plain text for others
+        player.displayClientMessage(formatFlag("Blocks", data.isBlocksProtected(), name, isOwner), false);
+        player.displayClientMessage(formatFlag("Interactions", data.isInteractionsProtected(), name, isOwner), false);
+        player.displayClientMessage(formatFlag("Inventories", data.isInventoriesProtected(), name, isOwner), false);
+
+        // Owner-only action buttons
+        if (isOwner) {
+            player.displayClientMessage(
+                    makeButton("[Rename]", "Click to rename",
+                            ClickEvent.Action.SUGGEST_COMMAND,
+                            "/sp edit " + name + " rename ")
+                            .append(Component.literal("  "))
+                            .append(makeButton("[Unclaim]", "Click to unclaim",
+                                    ClickEvent.Action.SUGGEST_COMMAND,
+                                    "/sp unclaim " + name)),
+                    false);
+        }
 
         // Owner
-        player.displayClientMessage(Component.literal("Owner: ")
+        MutableComponent ownerLine = Component.literal("Owner: ")
                 .withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(ownerName).withStyle(ChatFormatting.WHITE)), false);
+                .append(Component.literal(ownerName).withStyle(ChatFormatting.WHITE));
+        if (isOwner) {
+            ownerLine = ownerLine
+                    .append(Component.literal("  "))
+                    .append(makeButton("[Change Owner]", "Click to transfer ownership",
+                            ClickEvent.Action.SUGGEST_COMMAND,
+                            "/sp edit " + name + " changeowner "));
+        }
+        player.displayClientMessage(ownerLine, false);
 
         // Members
+        MutableComponent membersHeader = Component.literal("Members")
+                .withStyle(ChatFormatting.GRAY);
+        if (isOwner) {
+            membersHeader = membersHeader
+                    .append(Component.literal(" "))
+                    .append(makeButton("[Add Member]", "Click to add a member",
+                            ClickEvent.Action.SUGGEST_COMMAND,
+                            "/sp edit " + name + " addmember "));
+        }
+        membersHeader = membersHeader.append(Component.literal(":").withStyle(ChatFormatting.GRAY));
+
         if (data.getMembers().isEmpty()) {
-            player.displayClientMessage(Component.literal("Members: none")
-                    .withStyle(ChatFormatting.GRAY), false);
+            player.displayClientMessage(membersHeader
+                    .append(Component.literal(" none").withStyle(ChatFormatting.GRAY)), false);
         } else {
-            player.displayClientMessage(Component.literal("Members:")
-                    .withStyle(ChatFormatting.GRAY), false);
+            player.displayClientMessage(membersHeader, false);
             for (final UUID memberUuid : data.getMembers()) {
                 final String memberName = resolvePlayerName(player, memberUuid);
-                player.displayClientMessage(Component.literal("  " + memberName)
-                        .withStyle(ChatFormatting.WHITE), false);
+                MutableComponent memberLine = Component.literal("  " + memberName)
+                        .withStyle(ChatFormatting.WHITE);
+                if (isOwner) {
+                    memberLine = memberLine
+                            .append(Component.literal("  "))
+                            .append(makeButton("[Remove]", "Click to remove member",
+                                    ClickEvent.Action.RUN_COMMAND,
+                                    "/sp edit " + name + " removemember " + memberName));
+                }
+                player.displayClientMessage(memberLine, false);
             }
         }
 
@@ -159,14 +202,46 @@ public final class InfoCommand {
                 .withStyle(ChatFormatting.GRAY), false);
     }
 
-    private static MutableComponent formatFlag(final String label, final boolean isProtected) {
-        return Component.literal(label + ": ")
-                .withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(isProtected ? "PROTECTED" : "UNPROTECTED")
-                        .withStyle(isProtected ? ChatFormatting.GREEN : ChatFormatting.RED));
+    private static MutableComponent formatFlag(final String label, final boolean isProtected,
+                                                final String claimName, final boolean isOwner) {
+        final MutableComponent line = Component.literal(label + ": ")
+                .withStyle(ChatFormatting.GRAY);
+
+        final String statusText = isProtected ? "PROTECTED" : "UNPROTECTED";
+        final ChatFormatting statusColor = isProtected ? ChatFormatting.GREEN : ChatFormatting.RED;
+
+        if (isOwner) {
+            // Clickable toggle — clicking flips the current state
+            final String newState = isProtected ? "unprotected" : "protected";
+            final String category = label.toLowerCase();
+            line.append(Component.literal("[" + statusText + "]")
+                    .withStyle(style -> style
+                            .withColor(statusColor)
+                            .withClickEvent(new ClickEvent(
+                                    ClickEvent.Action.RUN_COMMAND,
+                                    "/sp edit " + claimName + " " + category + " " + newState))
+                            .withHoverEvent(new HoverEvent(
+                                    HoverEvent.Action.SHOW_TEXT,
+                                    Component.literal("Click to toggle")))));
+        } else {
+            line.append(Component.literal(statusText).withStyle(statusColor));
+        }
+
+        return line;
     }
 
-    private static String resolvePlayerName(final ServerPlayer viewer, final UUID uuid) {
+    private static MutableComponent makeButton(final String label, final String tooltip,
+                                                final ClickEvent.Action action, final String command) {
+        return Component.literal(label)
+                .withStyle(style -> style
+                        .withColor(ChatFormatting.AQUA)
+                        .withClickEvent(new ClickEvent(action, command))
+                        .withHoverEvent(new HoverEvent(
+                                HoverEvent.Action.SHOW_TEXT,
+                                Component.literal(tooltip))));
+    }
+
+    static String resolvePlayerName(final ServerPlayer viewer, final UUID uuid) {
         final ServerPlayer target = viewer.getServer().getPlayerList().getPlayer(uuid);
         if (target != null) {
             return target.getGameProfile().getName();

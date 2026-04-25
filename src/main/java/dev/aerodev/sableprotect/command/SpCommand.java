@@ -14,6 +14,8 @@ public final class SpCommand {
                         .then(ClaimCommand.register(registry))
                         .then(UnclaimCommand.register(registry))
                         .then(InfoCommand.register(registry))
+                        .then(EditCommand.register(registry))
+                        .then(MyClaimsCommand.register(registry))
                         .then(DebugCommand.register())
                         .then(ClaimUuidCommand.register(registry))
         );

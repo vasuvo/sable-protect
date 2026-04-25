@@ -33,7 +33,6 @@ dev.aerodev.sableprotect/
 ├── claim/
 │   ├── ClaimData.java              # Per-sub-level claim state (serialized to userDataTag)
 │   ├── ClaimRegistry.java          # Server-wide name→UUID index, lifecycle management
-│   ├── ProtectionFlags.java        # Enum/bitfield for blocks/interactions/inventories
 │   └── ClaimRole.java              # Enum: OWNER, MEMBER, DEFAULT
 ├── protection/
 │   ├── BlockProtectionHandler.java # Block place/break + explosion events
@@ -52,7 +51,6 @@ dev.aerodev.sableprotect/
 │   ├── MyClaimsCommand.java        # /sp myclaims
 │   └── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
 ├── lifecycle/
-│   ├── SplitHandler.java           # Claim inheritance on sub-level split
 │   └── ClaimObserver.java          # SubLevelObserver for add/remove tracking
 └── util/
     ├── SubLevelLookup.java         # Physics-based spatial lookup for targeting sub-levels
