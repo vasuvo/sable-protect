@@ -9,7 +9,10 @@ import dev.ryanhcode.sable.sublevel.SubLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
@@ -25,6 +28,11 @@ public class InteractionProtectionHandler {
         // Skip containers — InventoryProtectionHandler handles those
         final BlockEntity blockEntity = player.level().getBlockEntity(event.getPos());
         if (blockEntity instanceof Container) return;
+
+        final BlockState state = player.level().getBlockState(event.getPos());
+
+        // Doors and fence gates are always interactable (player movement only)
+        if (state.getBlock() instanceof DoorBlock || state.getBlock() instanceof FenceGateBlock) return;
 
         final ClaimContext ctx = ProtectionHelper.getClaimContext(player.level(), event.getPos());
         if (ctx == null) return;

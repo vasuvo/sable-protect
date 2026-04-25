@@ -37,7 +37,7 @@ public class SableProtectMod {
     private void commonSetup(final FMLCommonSetupEvent event) {
         LOGGER.info("[sable-protect] Registering sub-level observer");
         SableEventPlatform.INSTANCE.onSubLevelContainerReady((level, container) -> {
-            container.addObserver(new ClaimObserver(claimRegistry));
+            container.addObserver(new ClaimObserver(claimRegistry, container));
             LOGGER.info("[sable-protect] Observer registered for level {}", level.dimension().location());
         });
     }

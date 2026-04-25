@@ -21,10 +21,10 @@ This restriction is always active and cannot be loosened — not even for member
 Covers placing and breaking individual blocks on the sub-level. If block protection is enabled, all explosions are also protected against.
 
 ### Interactions *(configurable toggle)*
-Covers all standard block interactions not covered by another category (e.g., buttons, levers, doors, crafting tables, furnaces, etc.).
+Covers all standard block interactions not covered by another category (e.g., buttons, levers, crafting tables, furnaces, etc.). Doors and fence gates are always interactable regardless of this toggle, since they are used purely for player movement. Block placement is not affected by this toggle — it is controlled exclusively by the Blocks permission.
 
 ### Inventories *(configurable toggle)*
-Covers interactions with storage containers: chests, barrels, and shulker boxes. Also includes interaction with the Create stock ticker, which provides access to vault contents.
+Covers interactions with storage containers: chests, barrels, and shulker boxes. Also includes interaction with the Create stock ticker and blaze burner, which provide access to vault contents and fuel respectively.
 
 ---
 
@@ -126,6 +126,11 @@ Claims the sub-level with the given UUID, bypassing the look-based targeting use
 ## Known Issues
 
 - **Merging glue is not fully protected.** The merge interaction is initiated client-side via `MergingGlueItemHandler`, which sends a custom packet (`PlaceMergingGluePacket`) that places glue blocks via `level.setBlockAndUpdate()`, bypassing standard block placement events. Server-side `RightClickBlock` cancellation does not prevent the client-side handler from proceeding. A full fix likely requires a Simulated-Project mixin or a client-side component.
+- **Physics Assembler is not fully protected.** Same pattern as the merging glue issue — the assembler interaction is driven by client-side logic that proceeds despite server-side `RightClickBlock` cancellation. The "protected" message appears but the disassembly still occurs.
+- **Steering Wheel (Simulated) is not fully protected.** The steering wheel uses a client-side `HoldInteraction` handler that sends `SteeringWheelPacket` directly, bypassing `RightClickBlock` entirely. Same root cause as the above issues.
+- **Analog Lever (Create) is not fully protected.** The analog lever's `useWithoutItem` returns `SUCCESS` on the client side before the server-side event can cancel it. The server-side protection check may not fire reliably for this block.
+- **Interactions protection also blocks block placement.** When the Interactions toggle is protected, right-clicking a surface to place a block is also denied because the `RightClickBlock` event is canceled before the placement event can fire. This is low-priority — it is unlikely an owner would leave Blocks unprotected while keeping Interactions protected.
+- **Split inheritance does not work.** When a claimed sub-level splits, fragments are not receiving the parent's claim data and remain unclaimed despite `ClaimObserver.tryInheritFromSplitParent()` being wired up. Suspected causes: `getSplitFromSubLevel()` may not be set yet when `onSubLevelAdded` fires for fragments, the parent may not be resolvable from the container at that point, or `userDataTag` writes during the add callback may not persist. Needs investigation against Sable's actual split timing.
 
 ---
 

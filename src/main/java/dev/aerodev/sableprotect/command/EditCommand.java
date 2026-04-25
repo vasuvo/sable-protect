@@ -23,9 +23,15 @@ public final class EditCommand {
                 .then(Commands.argument("name", StringArgumentType.string())
                         .suggests((ctx, builder) -> {
                             final ServerPlayer player = ctx.getSource().getPlayerOrException();
-                            for (final UUID id : registry.getOwnedBy(player.getUUID())) {
-                                final String name = registry.getNameByUuid(id);
-                                if (name != null) builder.suggest(name);
+                            if (player.hasPermissions(2)) {
+                                for (final String name : registry.getAllNames()) {
+                                    builder.suggest(name);
+                                }
+                            } else {
+                                for (final UUID id : registry.getOwnedBy(player.getUUID())) {
+                                    final String name = registry.getNameByUuid(id);
+                                    if (name != null) builder.suggest(name);
+                                }
                             }
                             return builder.buildFuture();
                         })
@@ -226,7 +232,7 @@ public final class EditCommand {
             return null;
         }
 
-        if (data.getRole(player.getUUID()) != ClaimRole.OWNER) {
+        if (data.getRole(player.getUUID()) != ClaimRole.OWNER && !player.hasPermissions(2)) {
             player.displayClientMessage(
                     Component.translatable("sableprotect.not_owner"), false);
             return null;

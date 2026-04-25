@@ -36,6 +36,20 @@ public class ClaimRegistry {
         return Collections.unmodifiableSet(nameIndex.keySet());
     }
 
+    /**
+     * Generate a unique name for a split fragment by appending "-N" until the name is free.
+     * Starts from "-2" to indicate it's a sibling of the original.
+     */
+    public String generateSuffixedName(final String baseName) {
+        int suffix = 2;
+        String candidate;
+        do {
+            candidate = baseName + "-" + suffix;
+            suffix++;
+        } while (isNameTaken(candidate));
+        return candidate;
+    }
+
     public void index(final ServerSubLevel subLevel) {
         final ClaimData data = ClaimData.read(subLevel);
         if (data != null) {

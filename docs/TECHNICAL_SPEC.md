@@ -185,13 +185,17 @@ All protection handlers follow the same pattern:
 ### InteractionProtectionHandler
 
 **Events:**
-- `PlayerInteractEvent.RightClickBlock` — block use (doors, buttons, levers, etc.)
+- `PlayerInteractEvent.RightClickBlock` — block use (buttons, levers, crafting tables, etc.)
 - `PlayerInteractEvent.EntityInteract` — right-click entities on the sub-level
 - `AttackEntityEvent` — attack entities on the sub-level
 
 **Check:** `claimData.interactionsProtected && role == DEFAULT`
 
-**Exclusion:** If the target block is a container (see InventoryProtectionHandler), skip — let the inventory handler decide.
+**Exclusions:**
+- Container blocks — handled by InventoryProtectionHandler
+- Doors (`DoorBlock`) and fence gates (`FenceGateBlock`) — always interactable regardless of toggle (player movement only, trapdoors are NOT excluded)
+
+**Known limitation:** When the Interactions toggle is protected, block placement is also blocked because canceling `RightClickBlock` prevents the `EntityPlaceEvent` from ever firing. This means the Interactions permission implicitly blocks placement too. This is low-priority — it is unlikely an owner would leave Blocks unprotected while keeping Interactions protected.
 
 ### InventoryProtectionHandler
 
@@ -200,9 +204,9 @@ All protection handlers follow the same pattern:
 
 **Check:** `claimData.inventoriesProtected && role == DEFAULT`
 
-**Container detection:** Check if the block at the event position is an instance of `Container` (or more specifically: chest, barrel, shulker box, or the Create stock ticker block type). This handler runs **before** InteractionProtectionHandler for container blocks — if it denies, the event is cancelled; if the block is not a container, it falls through to the interaction handler.
+**Container detection:** Check if the block at the event position is an instance of `Container` (or more specifically: chest, barrel, shulker box, or specific mod blocks). This handler runs **before** InteractionProtectionHandler for container blocks — if it denies, the event is cancelled; if the block is not a container, it falls through to the interaction handler.
 
-**Implementation note:** Both InteractionProtectionHandler and InventoryProtectionHandler listen to `RightClickBlock`. Use `@SubscribeEvent(priority = EventPriority.HIGH)` on the inventory handler so it runs first. If the block entity at the position implements `net.minecraft.world.Container` or `net.minecraft.world.inventory.MenuProvider`, treat it as an inventory interaction. For the Create stock ticker specifically, check the block's registry name (`create:stock_ticker`).
+**Implementation note:** Both InteractionProtectionHandler and InventoryProtectionHandler listen to `RightClickBlock`. Use `@SubscribeEvent(priority = EventPriority.HIGH)` on the inventory handler so it runs first. If the block entity at the position implements `net.minecraft.world.Container`, treat it as an inventory interaction. Additionally, the following mod blocks are treated as inventory interactions by registry name: `create:stock_ticker` (vault contents access) and `create:blaze_burner` (fuel insertion).
 
 ### DisassemblyProtectionHandler
 
@@ -474,9 +478,15 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 **Goal:** Claims survive sub-level splitting and merging behaves correctly.
 
 **Deliverables:**
-- Split inheritance in `ClaimObserver.onSubLevelAdded()` — copy claim data to fragments with mass >= 4, with name suffixing
-- Merge protection in `DisassemblyProtectionHandler` — deny merging glue placement when the adjacent sub-level is claimed by another player
-- Cleanup of small fragments (mass < 4 → unclaimed)
+- Split inheritance in `ClaimObserver.onSubLevelAdded()` — copy claim data to fragments with mass >= 4, with name suffixing via `ClaimRegistry.generateSuffixedName()` *(code wired, **NOT WORKING** — see Known Issues in DESIGN.md)*
+- Merge protection in `DisassemblyProtectionHandler` — deny merging glue placement on a sub-level the placing player does not own *(implemented in Phase 1; covers the cross-owner case)*
+- Cleanup of small fragments (mass < 4 → unclaimed) *(blocked by split inheritance not firing)*
+
+**Implementation notes:**
+- The `ClaimObserver` holds a reference to its `SubLevelContainer` so it can resolve the parent sub-level via `container.getSubLevel(parentUuid)` when `getSplitFromSubLevel()` is non-null.
+- Mass threshold lives as `MIN_INHERIT_MASS = 4.0` in `ClaimObserver` (mirrors the `minimumClaimMass` config value; consolidate once Phase 4 lands the config).
+- Inheritance generates the suffixed name from the parent's *current* name; chained splits will produce names like `Ship-2`, `Ship-3`, ... continuing past any existing suffix.
+- **Known issue:** in practice fragments do not get parent data copied and remain unclaimed. The wiring is in place but does not fire as expected — suspected to be a timing issue around when `getSplitFromSubLevel()` / `userDataTag` are populated relative to `onSubLevelAdded`. Needs investigation, possibly using `SubLevelHeatMapManager.addSplitListener` instead of (or in addition to) `onSubLevelAdded`.
 
 **Verification:**
 1. Claim a sub-level, then destroy blocks to cause a split — verify both fragments are claimed with the same owner/members/flags

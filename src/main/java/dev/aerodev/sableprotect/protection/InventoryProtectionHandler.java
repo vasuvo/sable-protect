@@ -16,12 +16,13 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 public class InventoryProtectionHandler {
 
     private static final ResourceLocation STOCK_TICKER = ResourceLocation.parse("create:stock_ticker");
+    private static final ResourceLocation BLAZE_BURNER = ResourceLocation.parse("create:blaze_burner");
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     public void onRightClickBlock(final PlayerInteractEvent.RightClickBlock event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        if (!isContainer(player, event)) return;
+        if (!isInventoryBlock(player, event)) return;
 
         final ClaimContext ctx = ProtectionHelper.getClaimContext(player.level(), event.getPos());
         if (ctx == null) return;
@@ -33,13 +34,13 @@ public class InventoryProtectionHandler {
         }
     }
 
-    private static boolean isContainer(final ServerPlayer player, final PlayerInteractEvent.RightClickBlock event) {
+    private static boolean isInventoryBlock(final ServerPlayer player, final PlayerInteractEvent.RightClickBlock event) {
         final BlockEntity blockEntity = player.level().getBlockEntity(event.getPos());
         if (blockEntity instanceof Container) {
             return true;
         }
 
-        final Block block = player.level().getBlockState(event.getPos()).getBlock();
-        return BuiltInRegistries.BLOCK.getKey(block).equals(STOCK_TICKER);
+        final ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(player.level().getBlockState(event.getPos()).getBlock());
+        return blockId.equals(STOCK_TICKER) || blockId.equals(BLAZE_BURNER);
     }
 }
