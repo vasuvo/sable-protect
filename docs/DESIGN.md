@@ -117,6 +117,19 @@ On success, ownership transfers to the issuing player, the member list is wiped,
 
 ---
 
+## Persistence
+
+All claims are stored server-side in `<world>/data/sableprotect_claims.dat`, independent of any individual sub-level's chunk-load state. This means:
+
+- `/sp myclaims`, `/sp info <name>`, and `/sp edit <name>` work for claimed sub-levels even when they're not currently loaded.
+- Edits made while a sub-level is unloaded (rename, change owner, toggle changes, member changes) are applied to the sub-level's `userDataTag` automatically the next time it loads.
+- A claim is only dropped when its sub-level is genuinely destroyed (disassembly, merge consumption, etc.) — a chunk unload, dimension change, or server restart never loses tracking.
+- `/sp locate`, `/sp fetch`, and `/sp steal` still require the sub-level to be loaded since they touch its physics state; these report a clear "not loaded" error instead of pretending the claim doesn't exist.
+
+The info window shows a grey `[unloaded]` annotation next to the title when a claim's sub-level isn't currently loaded so the player understands why the position-dependent buttons are missing.
+
+---
+
 ## No Man's Land
 
 A configurable rectangular XZ region inside which all claim protections are suspended and ships can be stolen via `/sp steal`. The region is defined by `noManLand.minX/maxX/minZ/maxZ` in `config/sableprotect-common.toml` and is gated by `noManLand.enabled` (default `false`, so existing servers don't suddenly gain a permission-free zone).

@@ -107,10 +107,9 @@ public final class EditCommand {
             case "inventories" -> resolved.data.setInventoriesProtected(protect);
         }
 
-        ClaimData.write(resolved.subLevel, resolved.data);
-        registry.update(resolved.subLevel.getUniqueId(), resolved.data);
+        persist(registry, resolved);
 
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -121,19 +120,18 @@ public final class EditCommand {
 
         // Check new name uniqueness
         final UUID existingHolder = registry.getSubLevelByName(newName);
-        if (existingHolder != null && !existingHolder.equals(resolved.subLevel.getUniqueId())) {
+        if (existingHolder != null && !existingHolder.equals(resolved.subLevelId)) {
             player.displayClientMessage(
                     Component.translatable("sableprotect.claim.name_taken", newName), false);
             return 0;
         }
 
         resolved.data.setName(newName);
-        ClaimData.write(resolved.subLevel, resolved.data);
-        registry.update(resolved.subLevel.getUniqueId(), resolved.data);
+        persist(registry, resolved);
 
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.renamed", oldName, newName), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -145,13 +143,12 @@ public final class EditCommand {
         resolved.data.setOwner(newOwner.getUUID());
         // Remove new owner from members if they were a member
         resolved.data.getMembers().remove(newOwner.getUUID());
-        ClaimData.write(resolved.subLevel, resolved.data);
-        registry.update(resolved.subLevel.getUniqueId(), resolved.data);
+        persist(registry, resolved);
 
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.owner_changed", name,
                         newOwner.getGameProfile().getName()), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -173,13 +170,12 @@ public final class EditCommand {
             return 0;
         }
 
-        ClaimData.write(resolved.subLevel, resolved.data);
-        registry.update(resolved.subLevel.getUniqueId(), resolved.data);
+        persist(registry, resolved);
 
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.member_added",
                         member.getGameProfile().getName(), name), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -195,18 +191,19 @@ public final class EditCommand {
             return 0;
         }
 
-        ClaimData.write(resolved.subLevel, resolved.data);
-        registry.update(resolved.subLevel.getUniqueId(), resolved.data);
+        persist(registry, resolved);
 
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.member_removed",
                         member.getGameProfile().getName(), name), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
 
     /**
-     * Resolves the claim by name, validates it exists, is loaded, and the player is the owner.
+     * Resolves the claim by name, validates it exists and the player is the owner.
+     * The sub-level is looked up but may be null (claim's sub-level is unloaded);
+     * edits proceed against the persistent storage regardless.
      * Returns null and sends an error message if any check fails.
      */
     private static ResolvedClaim resolve(final ServerPlayer player, final String name,
@@ -218,14 +215,7 @@ public final class EditCommand {
             return null;
         }
 
-        final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
-        if (subLevel == null) {
-            player.displayClientMessage(
-                    Component.translatable("sableprotect.not_loaded", name), false);
-            return null;
-        }
-
-        final ClaimData data = ClaimData.read(subLevel);
+        final ClaimData data = registry.getClaim(subLevelId);
         if (data == null) {
             player.displayClientMessage(
                     Component.translatable("sableprotect.not_found", name), false);
@@ -238,8 +228,19 @@ public final class EditCommand {
             return null;
         }
 
-        return new ResolvedClaim(subLevel, data);
+        // May be null if the sub-level is currently unloaded — that's fine for edits.
+        final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
+        return new ResolvedClaim(subLevel, data, subLevelId);
     }
 
-    private record ResolvedClaim(ServerSubLevel subLevel, ClaimData data) {}
+    /** Persist a claim mutation: re-index storage, mirror to userDataTag if sub-level loaded. */
+    static void persist(final ClaimRegistry registry, final ResolvedClaim resolved) {
+        registry.touchClaim(resolved.subLevelId);
+        if (resolved.subLevel != null) {
+            ClaimData.write(resolved.subLevel, resolved.data);
+        }
+    }
+
+    private record ResolvedClaim(@org.jetbrains.annotations.Nullable ServerSubLevel subLevel,
+                                  ClaimData data, UUID subLevelId) {}
 }

@@ -9,6 +9,7 @@ import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.aerodev.sableprotect.util.SubLevelLookup;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
+import org.jetbrains.annotations.Nullable;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -54,21 +55,16 @@ public final class InfoCommand {
             return 0;
         }
 
-        final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
-        if (subLevel == null) {
-            player.displayClientMessage(
-                    Component.translatable("sableprotect.not_loaded", name), false);
-            return 0;
-        }
-
-        final ClaimData data = ClaimData.read(subLevel);
+        final ClaimData data = registry.getClaim(subLevelId);
         if (data == null) {
             player.displayClientMessage(
                     Component.translatable("sableprotect.not_found", name), false);
             return 0;
         }
 
-        sendInfoWindow(player, subLevel.getUniqueId(), subLevel, data);
+        // Sub-level may be unloaded; sendInfoWindow handles that gracefully.
+        final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
+        sendInfoWindow(player, subLevelId, subLevel, data);
         return 1;
     }
 
@@ -91,7 +87,7 @@ public final class InfoCommand {
     }
 
     public static void sendInfoWindow(final ServerPlayer player, final UUID subLevelId,
-                                      final ServerSubLevel subLevel, final ClaimData data) {
+                                      final @Nullable ServerSubLevel subLevel, final ClaimData data) {
         final ClaimRole role = data.getRole(player.getUUID());
         final boolean isOwner = role == ClaimRole.OWNER;
         final boolean isMemberOrOwner = role == ClaimRole.OWNER || role == ClaimRole.MEMBER;
@@ -113,7 +109,22 @@ public final class InfoCommand {
                                 HoverEvent.Action.SHOW_TEXT,
                                 Component.literal("Click to copy sub-level UUID"))));
 
-        final boolean inNoMansLand = NoMansLand.contains(subLevel);
+        // Position-dependent annotations (NML, world border, on-board) require a loaded sub-level.
+        final boolean loaded = subLevel != null;
+        final boolean inNoMansLand = loaded && NoMansLand.contains(subLevel);
+
+        if (!loaded) {
+            header = header
+                    .append(Component.literal(" "))
+                    .append(Component.literal("[unloaded]")
+                            .withStyle(style -> style
+                                    .withColor(ChatFormatting.GRAY)
+                                    .withItalic(true)
+                                    .withHoverEvent(new HoverEvent(
+                                            HoverEvent.Action.SHOW_TEXT,
+                                            Component.translatable("sableprotect.info.unloaded_hover")))));
+        }
+
         if (inNoMansLand) {
             header = header
                     .append(Component.literal(" "))
@@ -126,7 +137,7 @@ public final class InfoCommand {
                                             Component.translatable("sableprotect.info.nml_hover")))));
         }
 
-        if (isMemberOrOwner) {
+        if (isMemberOrOwner && loaded) {
             header = header
                     .append(Component.literal("  "))
                     .append(makeButton("[Locate]", "Click to locate",
@@ -142,7 +153,7 @@ public final class InfoCommand {
             }
         }
 
-        // Steal button — visible to non-owners viewing a ship currently in No Man's Land.
+        // Steal button — visible to non-owners viewing a loaded ship currently in No Man's Land.
         // Final eligibility (on board, crew absent) is enforced by the command itself.
         if (!isOwner && inNoMansLand) {
             header = header

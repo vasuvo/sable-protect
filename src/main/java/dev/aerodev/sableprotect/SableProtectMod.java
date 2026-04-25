@@ -3,6 +3,7 @@ package dev.aerodev.sableprotect;
 import com.mojang.logging.LogUtils;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.claim.ClaimStorage;
 import dev.aerodev.sableprotect.command.SpCommand;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
 import dev.aerodev.sableprotect.freeze.FreezeManager;
@@ -26,6 +27,8 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.minecraft.server.level.ServerLevel;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
@@ -92,11 +95,24 @@ public class SableProtectMod {
     }
 
     @SubscribeEvent
+    public void onServerStarted(final ServerStartedEvent event) {
+        // Attach the persistent claim storage. We anchor it to the overworld's data
+        // directory so all claims share a single file regardless of which dimension
+        // their sub-levels live in.
+        final ServerLevel overworld = event.getServer().overworld();
+        final ClaimStorage storage = overworld.getDataStorage()
+                .computeIfAbsent(ClaimStorage.factory(), ClaimStorage.FILE_ID);
+        claimRegistry.attach(storage);
+        LOGGER.info("[sable-protect] Claim storage attached ({} claims loaded)",
+                storage.entries().size());
+    }
+
+    @SubscribeEvent
     public void onServerStopping(final ServerStoppingEvent event) {
         // Clear constraints before the physics pipeline tears down so they don't persist
         // across restarts as orphaned anchors.
         freezeManager.cancelAll();
-        claimRegistry.clear();
+        claimRegistry.detach();
         SplitInheritanceQueue.clear();
     }
 }

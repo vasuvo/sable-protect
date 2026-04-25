@@ -80,8 +80,8 @@ public final class StealCommand {
         // Transfer ownership and clear members; toggles + name are preserved.
         target.data.setOwner(player.getUUID());
         target.data.getMembers().clear();
+        registry.touchClaim(target.subLevel.getUniqueId());
         ClaimData.write(target.subLevel, target.data);
-        registry.update(target.subLevel.getUniqueId(), target.data);
 
         // Notify previous owner + members in red. Skips offline players silently.
         final Component warning = Component.translatable(
@@ -108,14 +108,15 @@ public final class StealCommand {
             player.displayClientMessage(Component.translatable("sableprotect.not_found", name), false);
             return null;
         }
+        final ClaimData data = registry.getClaim(subLevelId);
+        if (data == null) {
+            player.displayClientMessage(Component.translatable("sableprotect.not_found", name), false);
+            return null;
+        }
+        // Steal requires the ship to be loaded — on-board check needs a real sub-level.
         final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
         if (subLevel == null) {
             player.displayClientMessage(Component.translatable("sableprotect.not_loaded", name), false);
-            return null;
-        }
-        final ClaimData data = ClaimData.read(subLevel);
-        if (data == null) {
-            player.displayClientMessage(Component.translatable("sableprotect.not_found", name), false);
             return null;
         }
         return new ResolvedTarget(subLevel, data);

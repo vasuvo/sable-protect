@@ -116,16 +116,10 @@ public final class ClaimUuidCommand {
             return 0;
         }
 
-        // Override any existing claim
-        final ClaimData existing = ClaimData.read(subLevel);
-        if (existing != null) {
-            registry.remove(subLevelId);
-        }
-
-        // Create claim
+        // Override any existing claim — putClaim handles re-indexing/dirty automatically.
         final ClaimData data = new ClaimData(ownerUuid, name);
+        registry.putClaim(subLevel.getUniqueId(), data);
         ClaimData.write(subLevel, data);
-        registry.update(subLevel.getUniqueId(), data);
 
         sender.displayClientMessage(
                 Component.translatable("sableprotect.claimuuid.success", name, ownerDisplay), false);

@@ -65,15 +65,7 @@ public final class UnclaimCommand {
             return 0;
         }
 
-        // Find the sub-level across all dimensions
-        final ServerSubLevel subLevel = findSubLevel(player, subLevelId);
-        if (subLevel == null) {
-            player.displayClientMessage(
-                    Component.translatable("sableprotect.not_loaded", name), false);
-            return 0;
-        }
-
-        final ClaimData data = ClaimData.read(subLevel);
+        final ClaimData data = registry.getClaim(subLevelId);
         if (data == null) {
             player.displayClientMessage(
                     Component.translatable("sableprotect.not_found", name), false);
@@ -86,8 +78,12 @@ public final class UnclaimCommand {
             return 0;
         }
 
-        ClaimData.clear(subLevel);
-        registry.remove(subLevelId);
+        // Sub-level may be unloaded; clearing the tag is best-effort.
+        final ServerSubLevel subLevel = findSubLevel(player, subLevelId);
+        if (subLevel != null) {
+            ClaimData.clear(subLevel);
+        }
+        registry.removeClaim(subLevelId);
 
         player.displayClientMessage(
                 Component.translatable("sableprotect.unclaim.success", name), false);

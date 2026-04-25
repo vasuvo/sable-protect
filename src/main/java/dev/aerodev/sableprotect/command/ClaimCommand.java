@@ -59,10 +59,10 @@ public final class ClaimCommand {
             return 0;
         }
 
-        // Create claim
+        // Create claim — register first (canonical), then mirror to userDataTag.
         final ClaimData data = new ClaimData(player.getUUID(), name);
+        registry.putClaim(serverSubLevel.getUniqueId(), data);
         ClaimData.write(serverSubLevel, data);
-        registry.update(serverSubLevel.getUniqueId(), data);
 
         player.displayClientMessage(
                 Component.translatable("sableprotect.claim.success", name), false);

@@ -31,9 +31,10 @@ This document defines the technical architecture, data model, and phased impleme
 dev.aerodev.sableprotect/
 ├── SableProtectMod.java            # @Mod entry point, event bus registration
 ├── claim/
-│   ├── ClaimData.java              # Per-sub-level claim state (serialized to userDataTag)
-│   ├── ClaimRegistry.java          # Server-wide name→UUID index, lifecycle management
-│   └── ClaimRole.java              # Enum: OWNER, MEMBER, DEFAULT
+│   ├── ClaimData.java              # Per-sub-level claim state (serialized to userDataTag and to ClaimStorage)
+│   ├── ClaimRegistry.java          # Server-wide name→UUID index, storage-backed (Phase 7)
+│   ├── ClaimRole.java              # Enum: OWNER, MEMBER, DEFAULT
+│   └── ClaimStorage.java           # SavedData persisted to <world>/data/sableprotect_claims.dat (Phase 7)
 ├── protection/
 │   ├── BlockProtectionHandler.java # Block place/break + explosion events
 │   ├── InteractionProtectionHandler.java # RightClickBlock, entity interact events
@@ -141,7 +142,22 @@ public enum ClaimRole {
 
 ## 3. Claim Registry
 
-The registry is a server-side in-memory index that maps claim names to sub-level UUIDs. It is **not** persisted independently — it is rebuilt on server start by scanning all loaded sub-levels.
+The registry is a server-side index over the persistent {@link ClaimStorage} (introduced in Phase 7). It maintains in-memory derived indexes — name → UUID, UUID → name, owner → UUIDs, member → UUIDs — backed by the canonical `Map<UUID, ClaimData>` stored in the `SavedData` file.
+
+**Persistence model:**
+- `ClaimStorage` is a vanilla `SavedData` anchored to the overworld's data directory (`<world>/data/sableprotect_claims.dat`). It is the canonical source of truth for all claims.
+- Each `ServerSubLevel.userDataTag` carries a mirror of its claim, which is kept in sync when the sub-level is loaded. The mirror is *not* authoritative — on conflict the storage wins.
+- The registry is attached to storage on `ServerStartedEvent` and detached on `ServerStoppingEvent`. Any claims the registry accumulated pre-attach (from sub-level containers ready before `ServerStartedEvent`) are reconciled at attach time.
+
+**Reconciliation on sub-level load (`ClaimObserver.onSubLevelAdded` → `ClaimRegistry.index`):**
+- *storage has, tag has, agree:* re-index, no writes.
+- *storage has, tag empty (or differs):* claim was edited while unloaded — write storage's data into the tag.
+- *storage empty, tag has:* legacy claim from pre-Phase-7 — migrate by writing to storage.
+- *both empty:* nothing to track.
+
+**Lifecycle on sub-level removal (`ClaimObserver.onSubLevelRemoved`):**
+- `UNLOADED` reason → keep the claim in storage and indexes; the sub-level can reload.
+- `REMOVED` reason → drop from storage and indexes; the sub-level was destroyed (disassembled, merged, etc.).
 
 ```java
 public class ClaimRegistry {
@@ -629,3 +645,30 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 3. With the owner online and standing on the ship, attempt `/sp steal` from a non-owner: should fail with the crew-present message naming the owner.
 4. With the owner offline (or kicked, or far away), board the ship as a non-owner and run `/sp steal <name>` then `/sp steal <name> CONFIRM`: ownership should transfer, the previous owner gets a red notification on next login (or immediately if online), and members are cleared.
 5. Move the ship out of NML and verify the new owner's protections re-engage.
+
+---
+
+### Phase 7: Persistent Claim Tracking
+**Goal:** Claims survive sub-level unload, dimension change, and server restart. `/sp myclaims`, `/sp info`, and `/sp edit` continue to work for unloaded claims; any edits made while a sub-level is unloaded are applied to its `userDataTag` next time it loads.
+
+**Deliverables:**
+- `claim/ClaimStorage.java` — `SavedData` holding `Map<UUID, ClaimData>` persisted to `<world>/data/sableprotect_claims.dat` *(implemented)*
+- `ClaimRegistry` refactored to delegate writes through storage; in-memory indexes are derived and rebuilt from storage on `attach()` *(implemented)*
+- `ClaimObserver.onSubLevelRemoved` distinguishes `UNLOADED` (keep tracking) from `REMOVED` (drop) *(implemented)*
+- `ClaimObserver.onSubLevelAdded` reconciles `userDataTag` against storage on every load — the storage wins on conflict, so edits made while unloaded are applied to the tag when the sub-level loads next *(implemented in `ClaimRegistry.index`)*
+- `SableProtectMod` attaches storage on `ServerStartedEvent`, detaches on `ServerStoppingEvent` *(implemented)*
+- `EditCommand`, `UnclaimCommand`, `InfoCommand` read claim data from the registry instead of `userDataTag`, so they work for unloaded claims; sub-level lookup is best-effort and `userDataTag` is mirrored only when loaded *(implemented)*
+- `/sp info <name>` shows an `[unloaded]` annotation when the sub-level isn't currently loaded; `[Locate]`, `[Fetch]`, and `[Steal]` are hidden in that case (they all need a loaded body) *(implemented)*
+- `LocateCommand`, `FetchCommand`, `StealCommand` continue to require a loaded sub-level (their physics-dependent operations can't work otherwise), but with consistent "not_loaded" error messaging *(implemented)*
+
+**Implementation notes:**
+- Storage anchors to the overworld so a single file covers all dimensions; sub-level UUIDs are globally unique within the server.
+- `ClaimRegistry.touchClaim(uuid)` is the new in-place mutation API — callers obtain a `ClaimData` reference via `getClaim`, mutate it, then call `touchClaim` to mark dirty + re-index. This avoids needing fresh allocations on every edit.
+- The legacy `update`/`remove`/`clear` methods are retained as `@Deprecated` thin wrappers around `putClaim`/`removeClaim`/`detach` so any out-of-tree callers keep working during the transition.
+- Pre-attach sub-level adds (from `onSubLevelContainerReady` callbacks that fire before `ServerStartedEvent`) populate the registry's indexes only; on `attach()` the storage takes precedence and indexes are rebuilt from it. Any tag-only claims discovered post-attach migrate into storage automatically via `ClaimRegistry.index`.
+
+**Verification:**
+1. Claim a sub-level, log out, log back in — verify `/sp myclaims` still lists it and `/sp info <name>` succeeds even before the sub-level reloads.
+2. Unload a sub-level by getting far away from it. Run `/sp edit <name> rename Foo` from a different player. Walk back to reload the sub-level — verify `userDataTag` now reflects the new name.
+3. Restart the server with claimed sub-levels in unloaded chunks — verify `/sp myclaims` still shows them.
+4. Disassemble a claimed sub-level via the Physics Assembler — verify the claim is removed from storage (next `/sp myclaims` doesn't list it).

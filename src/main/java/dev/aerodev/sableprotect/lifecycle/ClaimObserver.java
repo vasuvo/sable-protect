@@ -50,28 +50,35 @@ public class ClaimObserver implements SubLevelObserver {
     @Override
     public void onSubLevelAdded(final SubLevel subLevel) {
         if (!(subLevel instanceof ServerSubLevel serverSubLevel)) return;
+        final UUID id = serverSubLevel.getUniqueId();
 
-        // Load path: if the userDataTag already carries claim data, index immediately.
-        final ClaimData existing = ClaimData.read(serverSubLevel);
-        if (existing != null) {
-            registry.index(serverSubLevel);
-            return;
-        }
+        // Reconcile storage <-> userDataTag and update indexes. This handles three cases:
+        //   * tag has a claim, storage doesn't  -> legacy migration into storage
+        //   * storage has a claim, tag doesn't  -> claim was edited while unloaded, sync to tag
+        //   * both agree                        -> idempotent re-index
+        registry.index(serverSubLevel);
+        if (registry.getClaim(id) != null) return;
 
-        // Pair this addition with the most recent SplitInheritanceQueue entry for this level
-        // (pushed by our SplitListener moments earlier). If null, this isn't a split fragment.
+        // No existing claim — check whether this sub-level is the new fragment of an
+        // ongoing split (pushed by our SplitListener moments before allocation).
         final SplitInheritanceQueue.Entry queued = SplitInheritanceQueue.poll(serverSubLevel.getLevel());
         if (queued == null || !queued.hasClaim()) return;
 
         // Defer until mass is ready; the parent claim is captured here so we don't depend on
         // Sable's transient splitFromSubLevel field, which gets cleared during the same tick.
-        pending.put(serverSubLevel.getUniqueId(), new PendingEntry(queued.parentClaim()));
+        pending.put(id, new PendingEntry(queued.parentClaim()));
     }
 
     @Override
     public void onSubLevelRemoved(final SubLevel subLevel, final SubLevelRemovalReason reason) {
         pending.remove(subLevel.getUniqueId());
-        registry.remove(subLevel.getUniqueId());
+        // UNLOADED means the chunk was unloaded but the sub-level still exists on disk and
+        // could be reloaded. We MUST keep the claim tracked across unloads so /sp myclaims,
+        // /sp info, and /sp edit work for unloaded claims. Only REMOVED — the sub-level was
+        // genuinely destroyed (disassembled, merged, etc.) — should drop the claim.
+        if (reason == SubLevelRemovalReason.REMOVED) {
+            registry.removeClaim(subLevel.getUniqueId());
+        }
         freezeManager.cancel(subLevel.getUniqueId());
     }
 
@@ -113,8 +120,8 @@ public class ClaimObserver implements SubLevelObserver {
         final ClaimData inherited = parentClaim.copy();
         final String newName = registry.generateSuffixedName(parentClaim.getName());
         inherited.setName(newName);
+        registry.putClaim(fragment.getUniqueId(), inherited);
         ClaimData.write(fragment, inherited);
-        registry.index(fragment);
 
         SableProtectMod.LOGGER.info(
                 "[sable-protect] Inherited claim '{}' from '{}' onto fragment {} (mass {})",
