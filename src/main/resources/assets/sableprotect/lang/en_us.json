@@ -25,5 +25,17 @@
   "sableprotect.edit.not_a_member": "%s is not a member.",
   "sableprotect.myclaims.none": "You have no claims.",
   "sableprotect.myclaims.owned": "Owned:",
-  "sableprotect.myclaims.member_of": "Member of:"
+  "sableprotect.myclaims.member_of": "Member of:",
+  "sableprotect.locate.success": "'%s' is at %s.",
+  "sableprotect.locate.not_authorized": "Only the owner or a member can locate this sub-level.",
+  "sableprotect.fetch.success": "Fetched '%s' to %s. Physics frozen for %s seconds.",
+  "sableprotect.fetch.not_authorized": "Only the owner or a member can fetch this sub-level.",
+  "sableprotect.fetch.inside_border": "That sub-level is already inside the world border.",
+  "sableprotect.fetch.already_frozen": "'%s' is already frozen.",
+  "sableprotect.fetch.failed": "Could not fetch the sub-level (no physics handle).",
+  "sableprotect.fetch.freeze_unavailable": "Physics freeze is not available in this dimension.",
+  "sableprotect.fetch.freeze_expired": "Physics freeze on '%s' has expired.",
+  "sableprotect.bypass.enabled": "Admin bypass ENABLED — you now bypass all claim protection.",
+  "sableprotect.bypass.disabled": "Admin bypass DISABLED — claim protection now applies to you.",
+  "sableprotect.bypass.not_eligible": "You do not meet the configured permission level (%s) for admin bypass."
 }

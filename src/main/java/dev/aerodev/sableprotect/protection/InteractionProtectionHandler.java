@@ -37,6 +37,8 @@ public class InteractionProtectionHandler {
         final ClaimContext ctx = ProtectionHelper.getClaimContext(player.level(), event.getPos());
         if (ctx == null) return;
 
+        if (ProtectionHelper.isAdminBypass(player)) return;
+
         if (ctx.claimData().isInteractionsProtected() && ctx.claimData().getRole(player.getUUID()) == ClaimRole.DEFAULT) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.FAIL);
@@ -54,6 +56,8 @@ public class InteractionProtectionHandler {
         final ClaimData data = ClaimData.read(serverSubLevel);
         if (data == null) return;
 
+        if (ProtectionHelper.isAdminBypass(player)) return;
+
         if (data.isInteractionsProtected() && data.getRole(player.getUUID()) == ClaimRole.DEFAULT) {
             event.setCanceled(true);
             event.setCancellationResult(InteractionResult.FAIL);
@@ -70,6 +74,8 @@ public class InteractionProtectionHandler {
 
         final ClaimData data = ClaimData.read(serverSubLevel);
         if (data == null) return;
+
+        if (ProtectionHelper.isAdminBypass(player)) return;
 
         if (data.isInteractionsProtected() && data.getRole(player.getUUID()) == ClaimRole.DEFAULT) {
             event.setCanceled(true);

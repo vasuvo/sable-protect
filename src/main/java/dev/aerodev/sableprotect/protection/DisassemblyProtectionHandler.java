@@ -34,6 +34,8 @@ public class DisassemblyProtectionHandler {
             final ClaimContext ctx = ProtectionHelper.getClaimContext(player.level(), event.getPos());
             if (ctx == null) return;
 
+            if (ProtectionHelper.isAdminBypass(player)) return;
+
             if (ctx.claimData().getRole(player.getUUID()) != ClaimRole.OWNER) {
                 event.setCanceled(true);
                 event.setCancellationResult(InteractionResult.FAIL);
@@ -50,6 +52,8 @@ public class DisassemblyProtectionHandler {
         if (held.is(MERGING_GLUE_ITEM_TAG)) {
             final ClaimContext ctx = ProtectionHelper.getClaimContext(player.level(), event.getPos());
             if (ctx == null) return;
+
+            if (ProtectionHelper.isAdminBypass(player)) return;
 
             if (ctx.claimData().getRole(player.getUUID()) != ClaimRole.OWNER) {
                 event.setCanceled(true);

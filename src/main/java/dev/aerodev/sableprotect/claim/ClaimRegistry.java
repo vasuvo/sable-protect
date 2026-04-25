@@ -39,6 +39,10 @@ public class ClaimRegistry {
     /**
      * Generate a unique name for a split fragment by appending "-N" until the name is free.
      * Starts from "-2" to indicate it's a sibling of the original.
+     *
+     * Not synchronized: callers must invoke this on the server thread. Sub-level lifecycle
+     * callbacks (which is the only path that triggers this) all run on the main server tick
+     * thread, so two concurrent splits cannot collide on the same suffix.
      */
     public String generateSuffixedName(final String baseName) {
         int suffix = 2;

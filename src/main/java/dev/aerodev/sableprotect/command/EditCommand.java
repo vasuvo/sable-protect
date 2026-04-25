@@ -110,7 +110,7 @@ public final class EditCommand {
         ClaimData.write(resolved.subLevel, resolved.data);
         registry.update(resolved.subLevel.getUniqueId(), resolved.data);
 
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -133,7 +133,7 @@ public final class EditCommand {
 
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.renamed", oldName, newName), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -151,7 +151,7 @@ public final class EditCommand {
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.owner_changed", name,
                         newOwner.getGameProfile().getName()), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -179,7 +179,7 @@ public final class EditCommand {
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.member_added",
                         member.getGameProfile().getName(), name), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
         return 1;
     }
 
@@ -201,7 +201,7 @@ public final class EditCommand {
         player.displayClientMessage(
                 Component.translatable("sableprotect.edit.member_removed",
                         member.getGameProfile().getName(), name), false);
-        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.data);
+        InfoCommand.sendInfoWindow(player, resolved.subLevel.getUniqueId(), resolved.subLevel, resolved.data);
         return 1;
     }
 

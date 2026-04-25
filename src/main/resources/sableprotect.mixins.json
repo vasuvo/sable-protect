@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "package": "dev.aerodev.sableprotect.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8",
+  "mixinextras": {
+    "minVersion": "0.5.0"
+  },
+  "mixins": [
+    "sim.AssemblePacketMixin",
+    "sim.PlaceMergingGluePacketMixin",
+    "sim.PlaceSpringPacketMixin",
+    "sim.RopeBreakPacketMixin",
+    "sim.SteeringWheelPacketMixin",
+    "sim.ThrottleLeverSignalPacketMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -37,6 +37,15 @@ repositories {
             includeGroup('dev.ryanhcode.sable-companion')
         }
     }
+
+    // Veil (foundry.veil) — the networking layer Sable / Sim-Project use to dispatch
+    // custom packets. We need its types (ServerPacketContext, PacketContext) at compile
+    // time for the mixins that inject into those packet handlers.
+    maven {
+        name = 'BlameJared'
+        url = 'https://maven.blamejared.com'
+    }
+
 }
 
 base {
@@ -99,6 +108,12 @@ dependencies {
         exclude group: 'net.createmod.ponder', module: 'ponder-neoforge'
         exclude group: 'dev.engine-room.flywheel', module: "flywheel-neoforge-${project.minecraft_version}"
         exclude group: 'com.tterrag.registrate', module: 'Registrate'
+    }
+
+    // Veil — compile-only; provided at runtime by the user's modded instance (Sable / Sim-Project bring it).
+    // Needed for the ServerPacketContext type referenced by Sim-Project packet handlers.
+    compileOnly("foundry.veil:veil-neoforge-${project.minecraft_version}:${project.veil_version}") {
+        transitive = false
     }
 }
 

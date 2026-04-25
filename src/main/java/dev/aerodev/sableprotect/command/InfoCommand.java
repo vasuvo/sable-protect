@@ -67,7 +67,7 @@ public final class InfoCommand {
             return 0;
         }
 
-        sendInfoWindow(player, subLevel.getUniqueId(), data);
+        sendInfoWindow(player, subLevel.getUniqueId(), subLevel, data);
         return 1;
     }
 
@@ -85,21 +85,23 @@ public final class InfoCommand {
             return 1;
         }
 
-        sendInfoWindow(player, serverSubLevel.getUniqueId(), data);
+        sendInfoWindow(player, serverSubLevel.getUniqueId(), serverSubLevel, data);
         return 1;
     }
 
-    public static void sendInfoWindow(final ServerPlayer player, final UUID subLevelId, final ClaimData data) {
+    public static void sendInfoWindow(final ServerPlayer player, final UUID subLevelId,
+                                      final ServerSubLevel subLevel, final ClaimData data) {
         final ClaimRole role = data.getRole(player.getUUID());
         final boolean isOwner = role == ClaimRole.OWNER;
+        final boolean isMemberOrOwner = role == ClaimRole.OWNER || role == ClaimRole.MEMBER;
         final String name = data.getName();
         final String ownerName = resolvePlayerName(player, data.getOwner());
 
         player.displayClientMessage(Component.literal("----------------------------")
                 .withStyle(ChatFormatting.GRAY), false);
 
-        // Name — click to copy sub-level UUID
-        player.displayClientMessage(Component.literal(name)
+        // Name — click to copy sub-level UUID; Locate / Fetch shown to owner + members.
+        MutableComponent header = Component.literal(name)
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GOLD)
                         .withBold(true)
@@ -108,8 +110,23 @@ public final class InfoCommand {
                                 subLevelId.toString()))
                         .withHoverEvent(new HoverEvent(
                                 HoverEvent.Action.SHOW_TEXT,
-                                Component.literal("Click to copy sub-level UUID")))),
-                false);
+                                Component.literal("Click to copy sub-level UUID"))));
+        if (isMemberOrOwner) {
+            header = header
+                    .append(Component.literal("  "))
+                    .append(makeButton("[Locate]", "Click to locate",
+                            ClickEvent.Action.RUN_COMMAND,
+                            "/sp locate " + name));
+            if (isOutsideWorldBorder(subLevel)) {
+                header = header
+                        .append(Component.literal("  "))
+                        .append(makeButton("[Fetch from Out of Bounds]",
+                                "Click to fetch this sub-level back inside the world border",
+                                ClickEvent.Action.RUN_COMMAND,
+                                "/sp fetch " + name));
+            }
+        }
+        player.displayClientMessage(header, false);
 
         // Protection flags — clickable toggles for owner, plain text for others
         player.displayClientMessage(formatFlag("Blocks", data.isBlocksProtected(), name, isOwner), false);
@@ -239,6 +256,13 @@ public final class InfoCommand {
                         .withHoverEvent(new HoverEvent(
                                 HoverEvent.Action.SHOW_TEXT,
                                 Component.literal(tooltip))));
+    }
+
+    private static boolean isOutsideWorldBorder(final ServerSubLevel subLevel) {
+        final var border = subLevel.getLevel().getWorldBorder();
+        final var pos = subLevel.logicalPose().position();
+        return pos.x() < border.getMinX() || pos.x() > border.getMaxX()
+                || pos.z() < border.getMinZ() || pos.z() > border.getMaxZ();
     }
 
     static String resolvePlayerName(final ServerPlayer viewer, final UUID uuid) {

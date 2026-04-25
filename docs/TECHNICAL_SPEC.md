@@ -49,12 +49,27 @@ dev.aerodev.sableprotect/
 │   ├── LocateCommand.java          # /sp locate
 │   ├── FetchCommand.java           # /sp fetch + physics freeze
 │   ├── MyClaimsCommand.java        # /sp myclaims
-│   └── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
+│   ├── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
+│   └── BypassCommand.java          # /sp bypass (OP-only, toggle admin claim-protection bypass)
+├── config/
+│   └── SableProtectConfig.java     # ModConfigSpec (minimum mass, freeze duration, border inset)
+├── freeze/
+│   └── FreezeManager.java          # Tracks active /sp fetch freezes; ticks expiry; cleans up on remove
 ├── lifecycle/
-│   └── ClaimObserver.java          # SubLevelObserver for add/remove tracking
+│   ├── ClaimObserver.java          # SubLevelObserver for add/remove tracking
+│   └── SplitInheritanceQueue.java  # Bridges Sable's SplitListener to onSubLevelAdded
+├── mixin/
+│   └── sim/                        # Simulated-Project packet handler mixins (block client-side bypasses)
+│       ├── AssemblePacketMixin.java
+│       ├── PlaceMergingGluePacketMixin.java
+│       ├── PlaceSpringPacketMixin.java
+│       ├── RopeBreakPacketMixin.java
+│       ├── SteeringWheelPacketMixin.java
+│       └── ThrottleLeverSignalPacketMixin.java
 └── util/
     ├── SubLevelLookup.java         # Physics-based spatial lookup for targeting sub-levels
-    └── DebugHelper.java            # Per-player debug toggle state
+    ├── DebugHelper.java            # Per-player debug toggle state
+    └── BypassHelper.java           # Per-player admin-bypass opt-in state (session-only)
 ```
 
 ---
@@ -160,6 +175,39 @@ public class ClaimRegistry {
 
 ---
 
+## 3a. Mixin-Based Packet Protection
+
+Several Simulated-Project blocks dispatch interactions via Veil's `VeilPacketManager` from
+client-side input handlers, bypassing the standard `useItemOn` / `useWithoutItem` flow that
+the NeoForge `RightClickBlock` event hooks into. To protect those, a small set of mixins
+intercepts each packet's `handle(ServerPacketContext)` method at HEAD, resolves the target
+`BlockPos` to a sub-level via `Sable.HELPER.getContaining(level, pos)`, and aborts the
+handler if the player isn't authorized.
+
+| Packet                                       | Role required                          | UI feedback                                |
+| -------------------------------------------- | -------------------------------------- | ------------------------------------------ |
+| `AssemblePacket` (Physics Assembler trigger) | Owner                                  | Chat denial                                |
+| `PlaceMergingGluePacket`                     | Owner of both sides                    | Chat denial (action bar)                   |
+| `PlaceSpringPacket`                          | Owner of both sides                    | Chat denial (action bar)                   |
+| `SteeringWheelPacket`                        | Member or above (Interactions toggle)  | **Silent** — packet fires per input frame  |
+| `ThrottleLeverSignalPacket`                  | Member or above (Interactions toggle)  | **Silent**                                 |
+| `RopeBreakPacket`                            | Member or above (Blocks toggle)        | Chat denial                                |
+
+The shared decision logic lives in `protection/PacketProtection.java`; each mixin is a thin
+shim that pulls the relevant `BlockPos` out of the packet (via `@Shadow` for record fields,
+or `@Local` for variables computed inside the handler) and calls into the helper. All
+mixins use `remap = false` and target classes by string name (`@Mixin(targets = "...")`)
+so the mod compiles without Simulated-Project on the classpath.
+
+The mixin config is `src/main/resources/sableprotect.mixins.json`, registered via
+`[[mixins]] config = "sableprotect.mixins.json"` in `neoforge.mods.toml`. Veil is declared
+`compileOnly` in `build.gradle` so we can reference `ServerPacketContext` directly; at
+runtime Veil is provided by the user's installed Sable / Sim-Project (no new dependency).
+
+**Known gap:** The Physics Staff (`PhysicsStaffActionPacket`, `PhysicsStaffDragPacket`)
+targets sub-levels by UUID rather than block position and is not yet covered. See the
+DESIGN.md Known Issues section.
+
 ## 4. Protection Event Handlers
 
 All protection handlers follow the same pattern:
@@ -245,7 +293,8 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 │   ├── addmember <player: EntityArgument>
 │   └── removemember <player: EntityArgument>
 ├── unclaim <name: string> [CONFIRM]
-└── debug                                                              (OP)
+├── debug                                                              (OP)
+└── bypass                                                             (OP)
 ```
 
 **Targeting for `/sp claim` and `/sp info` (no name):**
@@ -478,15 +527,15 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 **Goal:** Claims survive sub-level splitting and merging behaves correctly.
 
 **Deliverables:**
-- Split inheritance in `ClaimObserver.onSubLevelAdded()` — copy claim data to fragments with mass >= 4, with name suffixing via `ClaimRegistry.generateSuffixedName()` *(code wired, **NOT WORKING** — see Known Issues in DESIGN.md)*
+- Split inheritance in `ClaimObserver` — copy claim data to fragments with mass >= configured minimum, with name suffixing via `ClaimRegistry.generateSuffixedName()` *(implemented; deferred-tick approach, see notes)*
 - Merge protection in `DisassemblyProtectionHandler` — deny merging glue placement on a sub-level the placing player does not own *(implemented in Phase 1; covers the cross-owner case)*
-- Cleanup of small fragments (mass < 4 → unclaimed) *(blocked by split inheritance not firing)*
+- Cleanup of small fragments (mass < min → unclaimed) *(implemented)*
 
 **Implementation notes:**
-- The `ClaimObserver` holds a reference to its `SubLevelContainer` so it can resolve the parent sub-level via `container.getSubLevel(parentUuid)` when `getSplitFromSubLevel()` is non-null.
-- Mass threshold lives as `MIN_INHERIT_MASS = 4.0` in `ClaimObserver` (mirrors the `minimumClaimMass` config value; consolidate once Phase 4 lands the config).
+- The `ClaimObserver` holds a reference to its `SubLevelContainer` so it can resolve the parent sub-level via `container.getSubLevel(parentUuid)`.
+- Mass threshold reads from `SableProtectConfig.MINIMUM_CLAIM_MASS` so claim and split-inheritance share a single source of truth.
 - Inheritance generates the suffixed name from the parent's *current* name; chained splits will produce names like `Ship-2`, `Ship-3`, ... continuing past any existing suffix.
-- **Known issue:** in practice fragments do not get parent data copied and remain unclaimed. The wiring is in place but does not fire as expected — suspected to be a timing issue around when `getSplitFromSubLevel()` / `userDataTag` are populated relative to `onSubLevelAdded`. Needs investigation, possibly using `SubLevelHeatMapManager.addSplitListener` instead of (or in addition to) `onSubLevelAdded`.
+- **Timing:** `onSubLevelAdded` fires inside `SubLevelAssemblyHelper.assembleBlocks()`, immediately after `container.allocateNewSubLevel(pose)` and **before** the plot has been populated with blocks, mass has been computed, or `setSplitFrom()` has been called. So the inheritance check cannot run during the add callback. The observer instead enrolls every fresh sub-level in a `pending` map, and re-checks each entry on subsequent `tick()` calls. By the next tick, `getSplitFromSubLevel()` is set and mass is populated, so inheritance can be applied. Pending entries time out after `MAX_PENDING_TICKS` (5) ticks if neither a claim nor a split parent appears, at which point the sub-level is treated as a freshly-assembled, unclaimed sub-level.
 
 **Verification:**
 1. Claim a sub-level, then destroy blocks to cause a split — verify both fragments are claimed with the same owner/members/flags
@@ -502,11 +551,19 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 **Goal:** Members and owners can find and recover out-of-bounds ships.
 
 **Deliverables:**
-- `/sp locate <name>` — returns world coordinates
-- `/sp fetch <name>` — teleports out-of-bounds sub-level inside the world border
-- Physics freeze system (FixedConstraint + tick-based expiry)
-- Freeze expiry notification to owner/members
-- Config options for freeze duration and border inset
+- `/sp locate <name>` — returns world coordinates *(implemented)*
+- `/sp fetch <name>` — teleports out-of-bounds sub-level inside the world border *(implemented)*
+- Physics freeze system (FixedConstraint + tick-based expiry) *(implemented in `freeze/FreezeManager`)*
+- Freeze expiry notification to owner/members *(implemented; subscriber list snapshotted at freeze time)*
+- Config options (`minimumClaimMass`, `fetchFreezeDurationSeconds`, `fetchBorderInset`) *(implemented in `config/SableProtectConfig`)*
+- Info-window `[Locate]` / `[Fetch]` buttons for owners and members *(implemented)*
+
+**Implementation notes:**
+- Teleport uses `pipeline.resetVelocity(subLevel)` followed by `pipeline.teleport(subLevel, pos, orientation)` (matching the order used by Sable's own `/sable subLevel teleport` command).
+- Freeze does **not** use a physics constraint. A world-anchor `FixedConstraint` was tried first, but caused the rigid body to be flung to extreme coordinates — Sable then auto-removed the sub-level via its `SUB_LEVEL_REMOVE_MAX` Y check. The current approach stores the anchor pose at freeze time and re-applies it every tick (`resetVelocity` + `teleport`) until expiry. This is functionally identical from the player's perspective and avoids the constraint timing/coordinate-frame issues.
+- `ClaimObserver.onSubLevelRemoved` calls `FreezeManager.cancel()` to drop the constraint when a frozen sub-level is unloaded or destroyed mid-freeze.
+- Safe-Y is computed from the world's `MOTION_BLOCKING_NO_LEAVES` heightmap plus a 5-block buffer.
+- `[Fetch]` is currently shown unconditionally in the info window for owners/members; per the design doc it should only appear when the sub-level is outside the world border. The command itself rejects in-border fetches, so this is a UX-only follow-up.
 
 **Verification:**
 1. Claim a sub-level, fly it outside the world border
@@ -523,13 +580,18 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 **Goal:** Harden edge cases, add localization, and finalize for release.
 
 **Deliverables:**
-- Full `en_us.json` localization for all messages (denial, confirmation, info window labels, notifications)
-- Admin bypass (op-level or permission node for moderators to bypass all protection)
-- Proper error messages for all failure cases (name taken, not looking at a sub-level, not the owner, etc.)
-- Handle edge case: sub-level removed while frozen (cleanup constraint)
-- Handle edge case: server shutdown while sub-levels are frozen (constraint persists in physics state; verify behavior on restart)
-- Handle edge case: player offline when freeze expires (just remove constraint silently)
-- Handle edge case: concurrent claims during split (two fragments getting indexed simultaneously — ensure name suffix generation is race-safe)
+- Full `en_us.json` localization for player-visible messages (denial, confirmation, info window labels, notifications) *(implemented for all `Component.translatable` strings; UI button labels and separators remain literal as design choice)*
+- Admin bypass via `adminBypassPermissionLevel` config (default 4, max 5 = disabled) — opt-in per session via `/sp bypass`; eligible admins start each session with protection applied until they toggle it off *(implemented in `ProtectionHelper.isAdminBypass` + `util/BypassHelper`, applied in all four protection handlers)*
+- Proper error messages for failure cases — name taken, not looking at a sub-level, not the owner, not loaded, not authorized for locate/fetch, etc. *(implemented across all commands)*
+- Sub-level removed while frozen → constraint cleaned up *(implemented in `ClaimObserver.onSubLevelRemoved` → `FreezeManager.cancel`)*
+- Server shutdown while frozen → constraints dropped before physics teardown *(implemented in `ServerStoppingEvent` → `FreezeManager.cancelAll`; `ClaimRegistry.clear()` also called)*
+- Player offline when freeze expires → message silently skipped *(implemented; `playerList.getPlayer(uuid)` returns null → no notification)*
+- Concurrent split name-suffix race *(non-issue; sub-level lifecycle callbacks all run on the server tick thread — documented in `ClaimRegistry.generateSuffixedName` Javadoc)*
+- Info-window `[Fetch from Out of Bounds]` button only shown when the sub-level is actually outside the world border *(implemented via `InfoCommand.isOutsideWorldBorder`)*
+
+**Implementation notes:**
+- The bypass disables on permission level 5 (above vanilla max of 4), so server admins can opt out by setting the config value to 5.
+- `ServerStoppingEvent` fires before the level (and thus the physics container) tears down, which is the correct moment to drop constraints — leaving them in place during teardown can result in dangling Rapier handles.
 
 **Verification:**
 - Full regression of all previous phase tests

@@ -10,6 +10,9 @@ description = '''
 Protection commands for Sable airships on NeoForge 1.21.1.
 '''
 
+[[mixins]]
+config = "sableprotect.mixins.json"
+
 [[dependencies.sableprotect]]
 modId = "neoforge"
 type = "required"
@@ -35,5 +38,12 @@ side = "BOTH"
 modId = "simulated"
 type = "required"
 versionRange = "[0.0.1,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.sableprotect]]
+modId = "veil"
+type = "required"
+versionRange = "[3.6,)"
 ordering = "AFTER"
 side = "BOTH"

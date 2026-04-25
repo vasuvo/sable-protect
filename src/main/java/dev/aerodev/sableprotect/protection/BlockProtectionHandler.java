@@ -16,6 +16,8 @@ public class BlockProtectionHandler {
         final ClaimContext ctx = ProtectionHelper.getClaimContext(player.level(), event.getPos());
         if (ctx == null) return;
 
+        if (ProtectionHelper.isAdminBypass(player)) return;
+
         if (ctx.claimData().isBlocksProtected() && ctx.claimData().getRole(player.getUUID()) == ClaimRole.DEFAULT) {
             event.setCanceled(true);
             ProtectionHelper.sendDeniedMessage(player);
@@ -28,6 +30,8 @@ public class BlockProtectionHandler {
 
         final ClaimContext ctx = ProtectionHelper.getClaimContext(player.level(), event.getPos());
         if (ctx == null) return;
+
+        if (ProtectionHelper.isAdminBypass(player)) return;
 
         if (ctx.claimData().isBlocksProtected() && ctx.claimData().getRole(player.getUUID()) == ClaimRole.DEFAULT) {
             event.setCanceled(true);

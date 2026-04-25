@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.config.SableProtectConfig;
 import dev.aerodev.sableprotect.util.SubLevelLookup;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -13,8 +14,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class ClaimCommand {
-
-    private static final double MINIMUM_CLAIM_MASS = 4.0;
 
     private ClaimCommand() {}
 
@@ -54,7 +53,7 @@ public final class ClaimCommand {
 
         // Check minimum mass
         final double mass = serverSubLevel.getMassTracker().getMass();
-        if (mass < MINIMUM_CLAIM_MASS) {
+        if (mass < SableProtectConfig.MINIMUM_CLAIM_MASS.get()) {
             player.displayClientMessage(
                     Component.translatable("sableprotect.claim.too_small"), false);
             return 0;

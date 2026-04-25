@@ -1,6 +1,8 @@
 package dev.aerodev.sableprotect.protection;
 
 import dev.aerodev.sableprotect.claim.ClaimData;
+import dev.aerodev.sableprotect.config.SableProtectConfig;
+import dev.aerodev.sableprotect.util.BypassHelper;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -30,6 +32,19 @@ public final class ProtectionHelper {
             return null;
         }
         return new ClaimContext(serverSubLevel, data);
+    }
+
+    /**
+     * Returns true if the player has both the configured permission level AND has opted in
+     * via {@code /sp bypass}. The opt-in is per-session and resets on server restart, so
+     * admins are subject to normal protection rules until they actively enable bypass.
+     * Set the config value above 4 to disable the bypass entirely.
+     */
+    public static boolean isAdminBypass(final ServerPlayer player) {
+        final int required = SableProtectConfig.ADMIN_BYPASS_PERMISSION_LEVEL.get();
+        if (required > 4) return false;
+        if (!player.hasPermissions(required)) return false;
+        return BypassHelper.isEnabled(player);
     }
 
     public static void sendDeniedMessage(final ServerPlayer player) {
