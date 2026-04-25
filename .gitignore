@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+repo/
+
+# Run directories
+run/
+run2/
+run-data/
+run-gametest/
+run-server/
+
+# Generated sources
+src/generated/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.classpath
+*.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
