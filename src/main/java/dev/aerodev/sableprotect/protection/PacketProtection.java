@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.protection;
 
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRole;
+import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -74,6 +75,7 @@ public final class PacketProtection {
     private static ClaimData resolveClaim(final Level level, final BlockPos pos) {
         final SubLevel subLevel = Sable.HELPER.getContaining(level, pos);
         if (!(subLevel instanceof ServerSubLevel serverSubLevel)) return null;
+        if (NoMansLand.contains(serverSubLevel)) return null;
         return ClaimData.read(serverSubLevel);
     }
 

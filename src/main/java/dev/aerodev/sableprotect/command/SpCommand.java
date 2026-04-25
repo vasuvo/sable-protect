@@ -21,6 +21,7 @@ public final class SpCommand {
                         .then(MyClaimsCommand.register(registry))
                         .then(LocateCommand.register(registry))
                         .then(FetchCommand.register(registry, freezeManager))
+                        .then(StealCommand.register(registry))
                         .then(DebugCommand.register())
                         .then(BypassCommand.register())
                         .then(ClaimUuidCommand.register(registry))

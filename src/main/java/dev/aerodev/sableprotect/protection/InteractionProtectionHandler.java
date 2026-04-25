@@ -3,6 +3,7 @@ package dev.aerodev.sableprotect.protection;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRole;
 import dev.aerodev.sableprotect.protection.ProtectionHelper.ClaimContext;
+import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -55,6 +56,7 @@ public class InteractionProtectionHandler {
 
         final ClaimData data = ClaimData.read(serverSubLevel);
         if (data == null) return;
+        if (NoMansLand.contains(serverSubLevel)) return;
 
         if (ProtectionHelper.isAdminBypass(player)) return;
 
@@ -74,6 +76,7 @@ public class InteractionProtectionHandler {
 
         final ClaimData data = ClaimData.read(serverSubLevel);
         if (data == null) return;
+        if (NoMansLand.contains(serverSubLevel)) return;
 
         if (ProtectionHelper.isAdminBypass(player)) return;
 

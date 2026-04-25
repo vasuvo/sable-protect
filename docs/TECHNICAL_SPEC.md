@@ -50,7 +50,8 @@ dev.aerodev.sableprotect/
 │   ├── FetchCommand.java           # /sp fetch + physics freeze
 │   ├── MyClaimsCommand.java        # /sp myclaims
 │   ├── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
-│   └── BypassCommand.java          # /sp bypass (OP-only, toggle admin claim-protection bypass)
+│   ├── BypassCommand.java          # /sp bypass (OP-only, toggle admin claim-protection bypass)
+│   └── StealCommand.java           # /sp steal (Phase 6, requires NML + on-board + crew absent)
 ├── config/
 │   └── SableProtectConfig.java     # ModConfigSpec (minimum mass, freeze duration, border inset)
 ├── freeze/
@@ -69,7 +70,8 @@ dev.aerodev.sableprotect/
 └── util/
     ├── SubLevelLookup.java         # Physics-based spatial lookup for targeting sub-levels
     ├── DebugHelper.java            # Per-player debug toggle state
-    └── BypassHelper.java           # Per-player admin-bypass opt-in state (session-only)
+    ├── BypassHelper.java           # Per-player admin-bypass opt-in state (session-only)
+    └── NoMansLand.java             # Config-backed rectangle test (Phase 6)
 ```
 
 ---
@@ -293,6 +295,7 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 │   ├── addmember <player: EntityArgument>
 │   └── removemember <player: EntityArgument>
 ├── unclaim <name: string> [CONFIRM]
+├── steal <name: string> [CONFIRM]
 ├── debug                                                              (OP)
 └── bypass                                                             (OP)
 ```
@@ -598,3 +601,31 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 - Test with multiple players simultaneously to verify no race conditions
 - Test server restart with active claims and active freezes
 - Test all error messages display correctly
+
+---
+
+### Phase 6: No Man's Land
+**Goal:** A configurable rectangular region in which all claim protections are suspended and ships can be stolen by anyone willing to board them after the crew is absent.
+
+**Deliverables:**
+- `noManLand` config block (`enabled`, `minX`/`maxX`/`minZ`/`maxZ`, `stealAbsenceRadius`) *(implemented in `SableProtectConfig`)*
+- `util/NoMansLand.java` — single source of truth for the in-rectangle test, normalizing user-supplied corner order and short-circuiting when disabled *(implemented)*
+- `ProtectionHelper.getClaimContext` and `PacketProtection.resolveClaim` return null for in-NML claims, causing every event-based and mixin-based protection to no-op *(implemented)*
+- `InteractionProtectionHandler` entity-interact / attack-entity paths early-out on in-NML sub-levels (they read `ClaimData` directly, bypassing `getClaimContext`) *(implemented)*
+- `/sp steal <name> [CONFIRM]` — two-step ownership transfer with on-board + crew-absence preflight checks; preserves name + toggles, clears members, sends a red notification to all online prior owner/members *(implemented in `command/StealCommand`)*
+- Tab completion for `/sp steal` filters to claims currently in NML where the player isn't already the owner *(implemented)*
+- Info window: `[NO MAN'S LAND]` red annotation next to the title when applicable, `[Steal]` button for non-owners on in-NML ships *(implemented)*
+
+**Implementation notes:**
+- "On board" is determined by `Sable.HELPER.getTrackingOrVehicleSubLevel(player)`, matching how Sable itself attributes a player to a sub-level (riding, standing on, etc.).
+- "Crew absent" is enforced via squared-distance comparison from each online crew member's position to the sub-level's `logicalPose().position()`. Members on a different dimension count as absent. Offline members count as absent.
+- The initiator's own presence is excluded from the absence check (a member running `/sp steal` on themselves isn't blocked by their own proximity).
+- `/sp steal` does not interact with the admin bypass; bypass is irrelevant inside NML because protections are already off.
+- The claim's NBT (`sableprotect` compound on `userDataTag`) is unchanged when a ship enters/leaves NML — the gating is purely runtime, computed against the current pose. A claimed ship that re-enters protected airspace is immediately re-protected.
+
+**Verification:**
+1. With NML enabled, fly a claimed sub-level into the configured rectangle; verify a non-member can break/place blocks and use interactions on it.
+2. Verify the info window shows `[NO MAN'S LAND]` while inside the rectangle and the annotation disappears once the ship moves out.
+3. With the owner online and standing on the ship, attempt `/sp steal` from a non-owner: should fail with the crew-present message naming the owner.
+4. With the owner offline (or kicked, or far away), board the ship as a non-owner and run `/sp steal <name>` then `/sp steal <name> CONFIRM`: ownership should transfer, the previous owner gets a red notification on next login (or immediately if online), and members are cleared.
+5. Move the ship out of NML and verify the new owner's protections re-engage.

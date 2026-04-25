@@ -3,6 +3,7 @@ package dev.aerodev.sableprotect.protection;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
 import dev.aerodev.sableprotect.util.BypassHelper;
+import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -29,6 +30,10 @@ public final class ProtectionHelper {
         }
         final ClaimData data = ClaimData.read(serverSubLevel);
         if (data == null) {
+            return null;
+        }
+        // No Man's Land: claim still exists for /sp info / /sp myclaims, but protections do not apply.
+        if (NoMansLand.contains(serverSubLevel)) {
             return null;
         }
         return new ClaimContext(serverSubLevel, data);

@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimRole;
+import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.aerodev.sableprotect.util.SubLevelLookup;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -100,7 +101,7 @@ public final class InfoCommand {
         player.displayClientMessage(Component.literal("----------------------------")
                 .withStyle(ChatFormatting.GRAY), false);
 
-        // Name — click to copy sub-level UUID; Locate / Fetch shown to owner + members.
+        // Name — click to copy sub-level UUID; Locate / Fetch / Steal shown contextually.
         MutableComponent header = Component.literal(name)
                 .withStyle(style -> style
                         .withColor(ChatFormatting.GOLD)
@@ -111,6 +112,20 @@ public final class InfoCommand {
                         .withHoverEvent(new HoverEvent(
                                 HoverEvent.Action.SHOW_TEXT,
                                 Component.literal("Click to copy sub-level UUID"))));
+
+        final boolean inNoMansLand = NoMansLand.contains(subLevel);
+        if (inNoMansLand) {
+            header = header
+                    .append(Component.literal(" "))
+                    .append(Component.literal("[NO MAN'S LAND]")
+                            .withStyle(style -> style
+                                    .withColor(ChatFormatting.RED)
+                                    .withBold(true)
+                                    .withHoverEvent(new HoverEvent(
+                                            HoverEvent.Action.SHOW_TEXT,
+                                            Component.translatable("sableprotect.info.nml_hover")))));
+        }
+
         if (isMemberOrOwner) {
             header = header
                     .append(Component.literal("  "))
@@ -125,6 +140,17 @@ public final class InfoCommand {
                                 ClickEvent.Action.RUN_COMMAND,
                                 "/sp fetch " + name));
             }
+        }
+
+        // Steal button — visible to non-owners viewing a ship currently in No Man's Land.
+        // Final eligibility (on board, crew absent) is enforced by the command itself.
+        if (!isOwner && inNoMansLand) {
+            header = header
+                    .append(Component.literal("  "))
+                    .append(makeButton("[Steal]",
+                            "Click to steal — requires being on board with the crew absent",
+                            ClickEvent.Action.SUGGEST_COMMAND,
+                            "/sp steal " + name));
         }
         player.displayClientMessage(header, false);
 

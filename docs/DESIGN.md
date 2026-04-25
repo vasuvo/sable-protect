@@ -106,6 +106,29 @@ Removes a member. Owner only.
 ### `/sp unclaim <name>`
 Prompts for confirmation. The owner must then run `/sp unclaim <name> CONFIRM` to complete the action. Removes all claim data from the sub-level.
 
+### `/sp steal <name>`
+Steals ownership of a claimed sub-level inside No Man's Land. Two-step confirmation: `/sp steal <name>` previews the action, `/sp steal <name> CONFIRM` executes. All of the following must be true:
+- The sub-level must currently be inside the No Man's Land rectangle.
+- The player must be physically on board (riding or standing on the sub-level).
+- No online owner or member may be within `stealAbsenceRadius` blocks (default 100) of the ship's center. Offline crew members and crew on a different dimension count as absent.
+- The player isn't already the owner.
+
+On success, ownership transfers to the issuing player, the member list is wiped, and the name + protection toggles are preserved. The previous owner and any prior members receive a red chat warning naming the player who took their ship; offline targets are not notified.
+
+---
+
+## No Man's Land
+
+A configurable rectangular XZ region inside which all claim protections are suspended and ships can be stolen via `/sp steal`. The region is defined by `noManLand.minX/maxX/minZ/maxZ` in `config/sableprotect-common.toml` and is gated by `noManLand.enabled` (default `false`, so existing servers don't suddenly gain a permission-free zone).
+
+While a sub-level's center is inside the rectangle:
+- **Blocks**, **Interactions**, **Inventories**, and **Disassembly** protections are all bypassed for everyone, regardless of the claim's toggles or membership.
+- The info window shows a red `[NO MAN'S LAND]` annotation next to the claim name so players understand why protections aren't applying.
+- Non-owners viewing the info window see a `[Steal]` button next to the title.
+- The mixin-based packet protections (Physics Assembler trigger, merging glue, spring, steering wheel, throttle lever, rope break) are also suspended in NML, matching the event-based protections.
+
+The claim itself isn't removed — it survives a trip through No Man's Land unchanged unless someone uses `/sp steal` while the crew is absent. A ship that re-enters protected airspace immediately resumes its claim restrictions.
+
 ---
 
 ## Debug / Admin Commands

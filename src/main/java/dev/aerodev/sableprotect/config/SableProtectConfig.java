@@ -11,6 +11,13 @@ public final class SableProtectConfig {
     public static final ModConfigSpec.IntValue FETCH_BORDER_INSET;
     public static final ModConfigSpec.IntValue ADMIN_BYPASS_PERMISSION_LEVEL;
 
+    public static final ModConfigSpec.BooleanValue NO_MANS_LAND_ENABLED;
+    public static final ModConfigSpec.IntValue NO_MANS_LAND_MIN_X;
+    public static final ModConfigSpec.IntValue NO_MANS_LAND_MAX_X;
+    public static final ModConfigSpec.IntValue NO_MANS_LAND_MIN_Z;
+    public static final ModConfigSpec.IntValue NO_MANS_LAND_MAX_Z;
+    public static final ModConfigSpec.IntValue STEAL_ABSENCE_RADIUS;
+
     static {
         final ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
 
@@ -31,6 +38,38 @@ public final class SableProtectConfig {
                          "Vanilla permission levels: 0 = none, 2 = gamemasters, 3 = admins, 4 = full ops.",
                          "Set to 5 (above max) to disable the admin bypass entirely.")
                 .defineInRange("adminBypassPermissionLevel", 4, 0, 5);
+
+        builder.push("noMansLand");
+        builder.comment("A rectangular XZ region in which all claim protections are suspended.",
+                        "Inside this region, players can break, interact with, and disassemble any sub-level",
+                        "regardless of ownership. Owners can also be replaced via /sp steal when no live",
+                        "owner or member is within stealAbsenceRadius blocks of the ship.");
+
+        NO_MANS_LAND_ENABLED = builder
+                .comment("Whether the No Man's Land region is active. Default off so existing servers",
+                         "don't suddenly gain a permission-free zone.")
+                .define("enabled", false);
+
+        NO_MANS_LAND_MIN_X = builder
+                .comment("Minimum X (inclusive) of the No Man's Land rectangle.")
+                .defineInRange("minX", 1000, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        NO_MANS_LAND_MAX_X = builder
+                .comment("Maximum X (inclusive) of the No Man's Land rectangle.")
+                .defineInRange("maxX", 5000, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        NO_MANS_LAND_MIN_Z = builder
+                .comment("Minimum Z (inclusive) of the No Man's Land rectangle.")
+                .defineInRange("minZ", 1000, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        NO_MANS_LAND_MAX_Z = builder
+                .comment("Maximum Z (inclusive) of the No Man's Land rectangle.")
+                .defineInRange("maxZ", 5000, Integer.MIN_VALUE, Integer.MAX_VALUE);
+
+        STEAL_ABSENCE_RADIUS = builder
+                .comment("Radius (in blocks) around the ship's center within which any online owner or",
+                         "member blocks /sp steal. Players outside this radius (or offline) are treated",
+                         "as absent.")
+                .defineInRange("stealAbsenceRadius", 100, 1, 10_000);
+
+        builder.pop();
 
         SPEC = builder.build();
     }

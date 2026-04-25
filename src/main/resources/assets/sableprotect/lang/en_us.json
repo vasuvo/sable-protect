@@ -37,5 +37,13 @@
   "sableprotect.fetch.freeze_expired": "Physics freeze on '%s' has expired.",
   "sableprotect.bypass.enabled": "Admin bypass ENABLED — you now bypass all claim protection.",
   "sableprotect.bypass.disabled": "Admin bypass DISABLED — claim protection now applies to you.",
-  "sableprotect.bypass.not_eligible": "You do not meet the configured permission level (%s) for admin bypass."
+  "sableprotect.bypass.not_eligible": "You do not meet the configured permission level (%s) for admin bypass.",
+  "sableprotect.info.nml_hover": "This sub-level is currently inside No Man's Land — claim protections are suspended.",
+  "sableprotect.steal.confirm": "Are you sure you want to steal '%s'? Run /sp steal %1$s CONFIRM to proceed.",
+  "sableprotect.steal.success": "Stole '%s'. You are now the owner.",
+  "sableprotect.steal.already_owner": "You already own this sub-level.",
+  "sableprotect.steal.not_in_nml": "'%s' is not currently inside No Man's Land.",
+  "sableprotect.steal.not_on_board": "You must be on board '%s' to steal it.",
+  "sableprotect.steal.crew_present": "Cannot steal — %s (owner or member) is still nearby.",
+  "sableprotect.steal.notification": "%s has stolen your sub-level '%s' in No Man's Land."
 }
