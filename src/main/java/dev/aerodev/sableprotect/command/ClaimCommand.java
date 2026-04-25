@@ -1,0 +1,72 @@
+package dev.aerodev.sableprotect.command;
+
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.aerodev.sableprotect.claim.ClaimData;
+import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.util.SubLevelLookup;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
+import dev.ryanhcode.sable.sublevel.SubLevel;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+
+public final class ClaimCommand {
+
+    private static final double MINIMUM_CLAIM_MASS = 4.0;
+
+    private ClaimCommand() {}
+
+    public static LiteralArgumentBuilder<CommandSourceStack> register(final ClaimRegistry registry) {
+        return Commands.literal("claim")
+                .then(Commands.argument("name", StringArgumentType.string())
+                        .executes(ctx -> {
+                            final ServerPlayer player = ctx.getSource().getPlayerOrException();
+                            final String name = StringArgumentType.getString(ctx, "name");
+                            return execute(player, name, registry);
+                        }));
+    }
+
+    private static int execute(final ServerPlayer player, final String name, final ClaimRegistry registry) {
+        // Check name uniqueness
+        if (registry.isNameTaken(name)) {
+            player.displayClientMessage(
+                    Component.translatable("sableprotect.claim.name_taken", name), false);
+            return 0;
+        }
+
+        // Find targeted sub-level
+        final SubLevel target = SubLevelLookup.getTargetedSubLevel(player);
+        if (!(target instanceof ServerSubLevel serverSubLevel)) {
+            player.displayClientMessage(
+                    Component.translatable("sableprotect.claim.no_target"), false);
+            return 0;
+        }
+
+        // Check if already claimed
+        final ClaimData existing = ClaimData.read(serverSubLevel);
+        if (existing != null) {
+            player.displayClientMessage(
+                    Component.translatable("sableprotect.claim.already_claimed", existing.getName()), false);
+            return 0;
+        }
+
+        // Check minimum mass
+        final double mass = serverSubLevel.getMassTracker().getMass();
+        if (mass < MINIMUM_CLAIM_MASS) {
+            player.displayClientMessage(
+                    Component.translatable("sableprotect.claim.too_small"), false);
+            return 0;
+        }
+
+        // Create claim
+        final ClaimData data = new ClaimData(player.getUUID(), name);
+        ClaimData.write(serverSubLevel, data);
+        registry.update(serverSubLevel.getUniqueId(), data);
+
+        player.displayClientMessage(
+                Component.translatable("sableprotect.claim.success", name), false);
+        return 1;
+    }
+}

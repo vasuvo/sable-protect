@@ -1,0 +1,14 @@
+{
+  "sableprotect.protection.denied": "This ship is protected!",
+  "sableprotect.claim.name_taken": "The name '%s' is already taken.",
+  "sableprotect.claim.no_target": "You are not looking at a sub-level.",
+  "sableprotect.claim.already_claimed": "This sub-level is already claimed as '%s'.",
+  "sableprotect.claim.too_small": "This sub-level is too small to claim.",
+  "sableprotect.claim.success": "Claimed as '%s'!",
+  "sableprotect.not_found": "No claim found with name '%s'.",
+  "sableprotect.not_loaded": "'%s' is not currently loaded.",
+  "sableprotect.not_owner": "You are not the owner of this claim.",
+  "sableprotect.unclaim.confirm": "Are you sure you want to unclaim '%s'? Run /sp unclaim %1$s CONFIRM to proceed.",
+  "sableprotect.unclaim.success": "Unclaimed '%s'.",
+  "sableprotect.info.unclaimed": "This sub-level is not claimed."
+}
