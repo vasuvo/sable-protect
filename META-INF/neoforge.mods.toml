@@ -1,11 +1,11 @@
 modLoader = "javafml"
-loaderVersion = "${loader_version_range}"
-license = "${mod_license}"
+loaderVersion = "[1,)"
+license = "LGPL-2.1-only"
 
 [[mods]]
-modId = "${mod_id}"
-version = "${mod_version}"
-displayName = "${mod_name}"
+modId = "sableprotect"
+version = "0.1.1"
+displayName = "Sable Protect"
 description = '''
 Protection commands for Sable airships on NeoForge 1.21.1.
 '''
@@ -20,7 +20,7 @@ side = "BOTH"
 [[dependencies.sableprotect]]
 modId = "minecraft"
 type = "required"
-versionRange = "${minecraft_version_range}"
+versionRange = "[1.21.1]"
 ordering = "NONE"
 side = "BOTH"
 

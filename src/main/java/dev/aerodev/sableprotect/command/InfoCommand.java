@@ -10,7 +10,9 @@ import dev.ryanhcode.sable.sublevel.SubLevel;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -64,7 +66,7 @@ public final class InfoCommand {
             return 0;
         }
 
-        sendInfoWindow(player, data);
+        sendInfoWindow(player, subLevel.getUniqueId(), data);
         return 1;
     }
 
@@ -78,24 +80,32 @@ public final class InfoCommand {
 
         final ClaimData data = ClaimData.read(serverSubLevel);
         if (data == null) {
-            player.displayClientMessage(
-                    Component.translatable("sableprotect.info.unclaimed"), false);
-            return 0;
+            sendUnclaimedWindow(player, serverSubLevel.getUniqueId());
+            return 1;
         }
 
-        sendInfoWindow(player, data);
+        sendInfoWindow(player, serverSubLevel.getUniqueId(), data);
         return 1;
     }
 
-    public static void sendInfoWindow(final ServerPlayer player, final ClaimData data) {
+    public static void sendInfoWindow(final ServerPlayer player, final UUID subLevelId, final ClaimData data) {
         final String ownerName = resolvePlayerName(player, data.getOwner());
 
         player.displayClientMessage(Component.literal("----------------------------")
                 .withStyle(ChatFormatting.GRAY), false);
 
-        // Name
+        // Name — click to copy sub-level UUID
         player.displayClientMessage(Component.literal(data.getName())
-                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
+                .withStyle(style -> style
+                        .withColor(ChatFormatting.GOLD)
+                        .withBold(true)
+                        .withClickEvent(new ClickEvent(
+                                ClickEvent.Action.COPY_TO_CLIPBOARD,
+                                subLevelId.toString()))
+                        .withHoverEvent(new HoverEvent(
+                                HoverEvent.Action.SHOW_TEXT,
+                                Component.literal("Click to copy sub-level UUID")))),
+                false);
 
         // Protection flags
         player.displayClientMessage(formatFlag("Blocks", data.isBlocksProtected()), false);
@@ -120,6 +130,30 @@ public final class InfoCommand {
                         .withStyle(ChatFormatting.WHITE), false);
             }
         }
+
+        player.displayClientMessage(Component.literal("----------------------------")
+                .withStyle(ChatFormatting.GRAY), false);
+    }
+
+    private static void sendUnclaimedWindow(final ServerPlayer player, final UUID subLevelId) {
+        player.displayClientMessage(Component.literal("----------------------------")
+                .withStyle(ChatFormatting.GRAY), false);
+
+        // UUID as name — click to copy
+        player.displayClientMessage(Component.literal(subLevelId.toString())
+                .withStyle(style -> style
+                        .withColor(ChatFormatting.GOLD)
+                        .withBold(true)
+                        .withClickEvent(new ClickEvent(
+                                ClickEvent.Action.COPY_TO_CLIPBOARD,
+                                subLevelId.toString()))
+                        .withHoverEvent(new HoverEvent(
+                                HoverEvent.Action.SHOW_TEXT,
+                                Component.literal("Click to copy sub-level UUID")))),
+                false);
+
+        player.displayClientMessage(Component.translatable("sableprotect.info.unclaimed")
+                .withStyle(ChatFormatting.GRAY), false);
 
         player.displayClientMessage(Component.literal("----------------------------")
                 .withStyle(ChatFormatting.GRAY), false);

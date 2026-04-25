@@ -10,5 +10,10 @@
   "sableprotect.not_owner": "You are not the owner of this claim.",
   "sableprotect.unclaim.confirm": "Are you sure you want to unclaim '%s'? Run /sp unclaim %1$s CONFIRM to proceed.",
   "sableprotect.unclaim.success": "Unclaimed '%s'.",
-  "sableprotect.info.unclaimed": "This sub-level is not claimed."
+  "sableprotect.info.unclaimed": "This sub-level is not claimed.",
+  "sableprotect.debug.enabled": "Sable Protect debug mode enabled.",
+  "sableprotect.debug.disabled": "Sable Protect debug mode disabled.",
+  "sableprotect.claimuuid.invalid_uuid": "'%s' is not a valid UUID.",
+  "sableprotect.claimuuid.not_found": "No sub-level found with UUID '%s'.",
+  "sableprotect.claimuuid.success": "Claimed as '%s' (owner: %s)."
 }

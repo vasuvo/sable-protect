@@ -108,6 +108,27 @@ Prompts for confirmation. The owner must then run `/sp unclaim <name> CONFIRM` t
 
 ---
 
+## Debug / Admin Commands
+
+These commands require OP (permission level 2) and are not available to regular players.
+
+### `/sp debug`
+Toggles debug mode for the issuing player. When enabled, sub-level lookups and protection checks display diagnostic information in chat (candidate sub-levels found, UUIDs, hit positions, etc.). Debug state is per-player and does not persist across server restarts.
+
+### `/sp claimuuid <uuid> <name> [<player> | owneruuid <owner-uuid>]`
+Claims the sub-level with the given UUID, bypassing the look-based targeting used by `/sp claim`. Useful for claiming sub-levels that are difficult to target visually. The name must still be globally unique. Owner options:
+- Omitted — defaults to the command sender.
+- `<player>` — an online player (tab-completable).
+- `owneruuid <uuid>` — a raw UUID for offline players, fake players, or server-owned claims.
+
+---
+
+## Known Issues
+
+- **Merging glue is not fully protected.** The merge interaction is initiated client-side via `MergingGlueItemHandler`, which sends a custom packet (`PlaceMergingGluePacket`) that places glue blocks via `level.setBlockAndUpdate()`, bypassing standard block placement events. Server-side `RightClickBlock` cancellation does not prevent the client-side handler from proceeding. A full fix likely requires a Simulated-Project mixin or a client-side component.
+
+---
+
 ## Sub-Level Lifecycle
 
 ### Splitting

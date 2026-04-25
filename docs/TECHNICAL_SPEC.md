@@ -6,6 +6,8 @@ This document defines the technical architecture, data model, and phased impleme
 - [DESIGN.md](DESIGN.md) — feature requirements and UX
 - [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) — Sable API reference and patterns
 
+> **Maintenance:** When adding, changing, or removing features, update both this spec and DESIGN.md to reflect the current state. Command additions must appear in the command tree (section 5), package structure (section 1), the relevant phase deliverables (section 10), and the Commands section of DESIGN.md.
+
 ---
 
 ## Table of Contents
@@ -41,17 +43,20 @@ dev.aerodev.sableprotect/
 ├── command/
 │   ├── SpCommand.java              # Root /sp command registration
 │   ├── ClaimCommand.java           # /sp claim
+│   ├── ClaimUuidCommand.java       # /sp claimuuid (OP-only, claim by UUID)
 │   ├── InfoCommand.java            # /sp info, builds chat component
 │   ├── EditCommand.java            # /sp edit (toggles, rename, changeowner, members)
 │   ├── UnclaimCommand.java         # /sp unclaim + confirmation
 │   ├── LocateCommand.java          # /sp locate
 │   ├── FetchCommand.java           # /sp fetch + physics freeze
-│   └── MyClaimsCommand.java        # /sp myclaims
+│   ├── MyClaimsCommand.java        # /sp myclaims
+│   └── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
 ├── lifecycle/
 │   ├── SplitHandler.java           # Claim inheritance on sub-level split
 │   └── ClaimObserver.java          # SubLevelObserver for add/remove tracking
 └── util/
-    └── SubLevelLookup.java         # Raycast/position helpers for targeting sub-levels
+    ├── SubLevelLookup.java         # Physics-based spatial lookup for targeting sub-levels
+    └── DebugHelper.java            # Per-player debug toggle state
 ```
 
 ---
@@ -204,14 +209,14 @@ All protection handlers follow the same pattern:
 ### DisassemblyProtectionHandler
 
 **Events:**
-- `PlayerInteractEvent.RightClickBlock` — for Physics Assembler interaction
-- `BlockEvent.EntityPlaceEvent` — for Merging Glue placement
+- `PlayerInteractEvent.RightClickBlock` — for Physics Assembler interaction **and** Merging Glue item use
+- `BlockEvent.EntityPlaceEvent` — fallback for Merging Glue block placement
 
 **Check:** `role != OWNER` (always denied for non-owners, regardless of toggles)
 
 **Physics Assembler detection:** Check if the block at the event position is `simulated:physics_assembler`. The interaction that triggers assembly/disassembly is `useWithoutItem` on the assembler block — this fires as a `RightClickBlock` event. If the assembler is on a claimed sub-level and the player is not the owner, cancel.
 
-**Merging Glue detection:** When a `BlockEvent.EntityPlaceEvent` fires, check if the placed block is `simulated:merging_glue`. Then check if the sub-level it is being placed on is claimed by someone other than the placer. If so, cancel the placement. Note: the player must own the sub-level the glue is placed on, but glue placement triggers merging with the *adjacent* sub-level — we only need to protect the target (adjacent) sub-level from being merged into without consent. The check is: if the *adjacent* sub-level (the one the glue faces toward) is claimed by a different player, deny the glue placement.
+**Merging Glue detection (known issue — not fully protected):** The merge is initiated by right-clicking with an item tagged `simulated:merging_glue` (slime balls). This triggers a **client-side** handler (`MergingGlueItemHandler`) that collects two click positions and sends a `PlaceMergingGluePacket` directly to the server, which calls `level.setBlockAndUpdate()` — bypassing `EntityPlaceEvent` entirely. Server-side `RightClickBlock` cancellation does not prevent the client-side handler from proceeding with the merge selection. The current handler catches `RightClickBlock` for the held item tag and retains `EntityPlaceEvent` as a fallback, but neither fully blocks the merge. A complete fix likely requires a mixin into `PlaceMergingGluePacket.handle()` or a client-side component.
 
 ---
 
@@ -222,6 +227,9 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 ```
 /sp
 ├── claim <name: string>
+├── claimuuid <uuid: string> <name: string>                            (OP)
+│   ├── <owner: EntityArgument>                     (online player)
+│   └── owneruuid <owner_uuid: string>              (raw UUID)
 ├── myclaims
 ├── info [name: string]
 ├── locate <name: string>
@@ -234,14 +242,17 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 │   ├── changeowner <player: EntityArgument>
 │   ├── addmember <player: EntityArgument>
 │   └── removemember <player: EntityArgument>
-└── unclaim <name: string> [CONFIRM]
+├── unclaim <name: string> [CONFIRM]
+└── debug                                                              (OP)
 ```
 
 **Targeting for `/sp claim` and `/sp info` (no name):**
-Use the player's look direction to raycast and find the nearest sub-level. Implementation via `Sable.HELPER`:
-1. Get the player's eye position and look vector
-2. Step along the ray within normal interaction distance (~5 blocks)
-3. At each step, call `Sable.HELPER.getContaining(level, pos)` — the first non-null result is the target
+Use the player's look direction to find the nearest sub-level via physics-based spatial query:
+1. Get the player's eye position and look vector; compute the ray endpoint at max reach (~6 blocks)
+2. Call `Sable.HELPER.getAllIntersecting(level, BoundingBox3d(eye, end))` to find all sub-levels whose physics bounds overlap the ray
+3. For each candidate, transform the ray into the sub-level's local/plot coordinate space using `subLevel.logicalPose().transformPositionInverse()`
+4. Step along the local-space ray checking for non-air blocks; track the closest hit across all candidates
+5. Note: `getContaining(level, pos)` only checks plot-grid chunk membership and does **not** work for world-space raycasts
 
 **Name argument completion:**
 For commands that take `<name>`, provide tab-completion via a `SuggestionProvider` that queries the `ClaimRegistry.nameIndex`. For owner-only commands, filter to the player's own claims. For member commands (locate, fetch), include claims the player is a member of.
@@ -415,6 +426,10 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 - `/sp claim <name>` — claim the targeted sub-level
 - `/sp unclaim <name> [CONFIRM]` — remove a claim
 - `/sp info <name>` — basic text output (no interactive buttons yet)
+- `/sp debug` — OP-only debug toggle
+- `/sp claimuuid <uuid> <name> [owner]` — OP-only claim by UUID
+- `SubLevelLookup` — physics-based `getAllIntersecting` + local-space raycast
+- `DebugHelper` — per-player debug state tracking
 - `BlockProtectionHandler` — block break, place, explosions
 - `InteractionProtectionHandler` — right-click block, entity interact, attack entity
 - `InventoryProtectionHandler` — container right-click filtering
