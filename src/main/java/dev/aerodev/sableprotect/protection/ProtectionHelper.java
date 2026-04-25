@@ -2,7 +2,9 @@ package dev.aerodev.sableprotect.protection;
 
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
+import dev.aerodev.sableprotect.permissions.Permissions;
 import dev.aerodev.sableprotect.util.BypassHelper;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
@@ -48,13 +50,15 @@ public final class ProtectionHelper {
     public static boolean isAdminBypass(final ServerPlayer player) {
         final int required = SableProtectConfig.ADMIN_BYPASS_PERMISSION_LEVEL.get();
         if (required > 4) return false;
-        if (!player.hasPermissions(required)) return false;
+        // LuckPerms node sableprotect.bypass.use overrides the level check; falls back
+        // to the vanilla level when LP is absent or hasn't expressed an opinion.
+        if (!Permissions.has(player, Permissions.Nodes.BYPASS_USE, required)) return false;
         return BypassHelper.isEnabled(player);
     }
 
     public static void sendDeniedMessage(final ServerPlayer player) {
         player.displayClientMessage(
-                Component.translatable("sableprotect.protection.denied"),
+                Lang.tr("sableprotect.protection.denied"),
                 true
         );
     }

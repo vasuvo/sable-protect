@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimRole;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -48,12 +49,12 @@ public final class UnclaimCommand {
         final UUID subLevelId = registry.getSubLevelByName(name);
         if (subLevelId == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_found", name), false);
+                    Lang.tr("sableprotect.not_found", name), false);
             return 0;
         }
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.unclaim.confirm", name), false);
+                Lang.tr("sableprotect.unclaim.confirm", name), false);
         return 1;
     }
 
@@ -61,20 +62,20 @@ public final class UnclaimCommand {
         final UUID subLevelId = registry.getSubLevelByName(name);
         if (subLevelId == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_found", name), false);
+                    Lang.tr("sableprotect.not_found", name), false);
             return 0;
         }
 
         final ClaimData data = registry.getClaim(subLevelId);
         if (data == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_found", name), false);
+                    Lang.tr("sableprotect.not_found", name), false);
             return 0;
         }
 
         if (data.getRole(player.getUUID()) != ClaimRole.OWNER) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_owner"), false);
+                    Lang.tr("sableprotect.not_owner"), false);
             return 0;
         }
 
@@ -86,7 +87,7 @@ public final class UnclaimCommand {
         registry.removeClaim(subLevelId);
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.unclaim.success", name), false);
+                Lang.tr("sableprotect.unclaim.success", name), false);
         return 1;
     }
 

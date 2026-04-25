@@ -40,6 +40,8 @@
   "sableprotect.bypass.not_eligible": "You do not meet the configured permission level (%s) for admin bypass.",
   "sableprotect.info.nml_hover": "This sub-level is currently inside No Man's Land — claim protections are suspended.",
   "sableprotect.info.unloaded_hover": "This sub-level is not currently loaded. Locate, fetch, and steal are unavailable until it loads again.",
+  "sableprotect.reload.success": "Sable Protect config reloaded.",
+  "sableprotect.reload.nml": "No Man's Land: %s — rectangle (%s, %s) to (%s, %s).",
   "sableprotect.steal.confirm": "Are you sure you want to steal '%s'? Run /sp steal %1$s CONFIRM to proceed.",
   "sableprotect.steal.success": "Stole '%s'. You are now the owner.",
   "sableprotect.steal.already_owner": "You already own this sub-level.",

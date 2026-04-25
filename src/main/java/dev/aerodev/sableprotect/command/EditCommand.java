@@ -5,6 +5,8 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimRole;
+import dev.aerodev.sableprotect.permissions.Permissions;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -23,7 +25,7 @@ public final class EditCommand {
                 .then(Commands.argument("name", StringArgumentType.string())
                         .suggests((ctx, builder) -> {
                             final ServerPlayer player = ctx.getSource().getPlayerOrException();
-                            if (player.hasPermissions(2)) {
+                            if (Permissions.has(player, Permissions.Nodes.EDIT_OVERRIDE, 2)) {
                                 for (final String name : registry.getAllNames()) {
                                     builder.suggest(name);
                                 }
@@ -101,10 +103,27 @@ public final class EditCommand {
         final ResolvedClaim resolved = resolve(player, name, registry);
         if (resolved == null) return 0;
 
+        // Invariant: blocks unprotected → interactions and inventories must also be
+        // unprotected. Toggling cascades in both directions to maintain it:
+        //   * unprotecting blocks      → also unprotect interactions + inventories
+        //   * protecting interactions  → also protect blocks (if currently unprotected)
+        //   * protecting inventories   → also protect blocks (if currently unprotected)
         switch (category) {
-            case "blocks" -> resolved.data.setBlocksProtected(protect);
-            case "interactions" -> resolved.data.setInteractionsProtected(protect);
-            case "inventories" -> resolved.data.setInventoriesProtected(protect);
+            case "blocks" -> {
+                resolved.data.setBlocksProtected(protect);
+                if (!protect) {
+                    resolved.data.setInteractionsProtected(false);
+                    resolved.data.setInventoriesProtected(false);
+                }
+            }
+            case "interactions" -> {
+                resolved.data.setInteractionsProtected(protect);
+                if (protect) resolved.data.setBlocksProtected(true);
+            }
+            case "inventories" -> {
+                resolved.data.setInventoriesProtected(protect);
+                if (protect) resolved.data.setBlocksProtected(true);
+            }
         }
 
         persist(registry, resolved);
@@ -122,7 +141,7 @@ public final class EditCommand {
         final UUID existingHolder = registry.getSubLevelByName(newName);
         if (existingHolder != null && !existingHolder.equals(resolved.subLevelId)) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.claim.name_taken", newName), false);
+                    Lang.tr("sableprotect.claim.name_taken", newName), false);
             return 0;
         }
 
@@ -130,7 +149,7 @@ public final class EditCommand {
         persist(registry, resolved);
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.edit.renamed", oldName, newName), false);
+                Lang.tr("sableprotect.edit.renamed", oldName, newName), false);
         InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
@@ -146,7 +165,7 @@ public final class EditCommand {
         persist(registry, resolved);
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.edit.owner_changed", name,
+                Lang.tr("sableprotect.edit.owner_changed", name,
                         newOwner.getGameProfile().getName()), false);
         InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
@@ -159,13 +178,13 @@ public final class EditCommand {
 
         if (member.getUUID().equals(resolved.data.getOwner())) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.edit.already_owner"), false);
+                    Lang.tr("sableprotect.edit.already_owner"), false);
             return 0;
         }
 
         if (!resolved.data.getMembers().add(member.getUUID())) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.edit.already_member",
+                    Lang.tr("sableprotect.edit.already_member",
                             member.getGameProfile().getName()), false);
             return 0;
         }
@@ -173,7 +192,7 @@ public final class EditCommand {
         persist(registry, resolved);
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.edit.member_added",
+                Lang.tr("sableprotect.edit.member_added",
                         member.getGameProfile().getName(), name), false);
         InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
@@ -186,7 +205,7 @@ public final class EditCommand {
 
         if (!resolved.data.getMembers().remove(member.getUUID())) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.edit.not_a_member",
+                    Lang.tr("sableprotect.edit.not_a_member",
                             member.getGameProfile().getName()), false);
             return 0;
         }
@@ -194,7 +213,7 @@ public final class EditCommand {
         persist(registry, resolved);
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.edit.member_removed",
+                Lang.tr("sableprotect.edit.member_removed",
                         member.getGameProfile().getName(), name), false);
         InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
@@ -211,20 +230,21 @@ public final class EditCommand {
         final UUID subLevelId = registry.getSubLevelByName(name);
         if (subLevelId == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_found", name), false);
+                    Lang.tr("sableprotect.not_found", name), false);
             return null;
         }
 
         final ClaimData data = registry.getClaim(subLevelId);
         if (data == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_found", name), false);
+                    Lang.tr("sableprotect.not_found", name), false);
             return null;
         }
 
-        if (data.getRole(player.getUUID()) != ClaimRole.OWNER && !player.hasPermissions(2)) {
+        if (data.getRole(player.getUUID()) != ClaimRole.OWNER
+                && !Permissions.has(player, Permissions.Nodes.EDIT_OVERRIDE, 2)) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_owner"), false);
+                    Lang.tr("sableprotect.not_owner"), false);
             return null;
         }
 

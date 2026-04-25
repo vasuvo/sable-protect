@@ -47,3 +47,10 @@ type = "required"
 versionRange = "[3.6,)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies.sableprotect]]
+modId = "luckperms"
+type = "optional"
+versionRange = "[5.4,)"
+ordering = "AFTER"
+side = "SERVER"

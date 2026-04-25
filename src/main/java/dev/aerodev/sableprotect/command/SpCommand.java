@@ -24,6 +24,7 @@ public final class SpCommand {
                         .then(StealCommand.register(registry))
                         .then(DebugCommand.register())
                         .then(BypassCommand.register())
+                        .then(ReloadCommand.register())
                         .then(ClaimUuidCommand.register(registry))
         );
     }

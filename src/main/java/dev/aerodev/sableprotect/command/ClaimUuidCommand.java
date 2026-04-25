@@ -4,6 +4,8 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.permissions.Permissions;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -24,7 +26,7 @@ public final class ClaimUuidCommand {
 
     public static LiteralArgumentBuilder<CommandSourceStack> register(final ClaimRegistry registry) {
         return Commands.literal("claimuuid")
-                .requires(src -> src.hasPermission(2))
+                .requires(src -> Permissions.has(src, Permissions.Nodes.COMMAND_CLAIMUUID, 2))
                 .then(Commands.argument("uuid", StringArgumentType.string())
                         .then(Commands.argument("name", StringArgumentType.string())
                                 // /sp claimuuid <uuid> <name> — owner defaults to sender
@@ -68,7 +70,7 @@ public final class ClaimUuidCommand {
                                                         ownerUuid = UUID.fromString(ownerUuidStr);
                                                     } catch (final IllegalArgumentException e) {
                                                         player.displayClientMessage(
-                                                                Component.translatable("sableprotect.claimuuid.invalid_uuid", ownerUuidStr), false);
+                                                                Lang.tr("sableprotect.claimuuid.invalid_uuid", ownerUuidStr), false);
                                                         return 0;
                                                     }
 
@@ -86,7 +88,7 @@ public final class ClaimUuidCommand {
             subLevelId = UUID.fromString(uuidStr);
         } catch (final IllegalArgumentException e) {
             sender.displayClientMessage(
-                    Component.translatable("sableprotect.claimuuid.invalid_uuid", uuidStr), false);
+                    Lang.tr("sableprotect.claimuuid.invalid_uuid", uuidStr), false);
             return 0;
         }
 
@@ -94,7 +96,7 @@ public final class ClaimUuidCommand {
         final UUID existingHolder = registry.getSubLevelByName(name);
         if (existingHolder != null && !existingHolder.equals(subLevelId)) {
             sender.displayClientMessage(
-                    Component.translatable("sableprotect.claim.name_taken", name), false);
+                    Lang.tr("sableprotect.claim.name_taken", name), false);
             return 0;
         }
 
@@ -112,7 +114,7 @@ public final class ClaimUuidCommand {
 
         if (subLevel == null) {
             sender.displayClientMessage(
-                    Component.translatable("sableprotect.claimuuid.not_found", uuidStr), false);
+                    Lang.tr("sableprotect.claimuuid.not_found", uuidStr), false);
             return 0;
         }
 
@@ -122,7 +124,7 @@ public final class ClaimUuidCommand {
         ClaimData.write(subLevel, data);
 
         sender.displayClientMessage(
-                Component.translatable("sableprotect.claimuuid.success", name, ownerDisplay), false);
+                Lang.tr("sableprotect.claimuuid.success", name, ownerDisplay), false);
         return 1;
     }
 }

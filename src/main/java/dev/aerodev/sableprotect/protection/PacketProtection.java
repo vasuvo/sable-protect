@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.protection;
 
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRole;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
@@ -92,6 +93,6 @@ public final class PacketProtection {
 
     /** Convenience constant for the "denied" message component. */
     public static Component deniedComponent() {
-        return Component.translatable("sableprotect.protection.denied");
+        return Lang.tr("sableprotect.protection.denied");
     }
 }

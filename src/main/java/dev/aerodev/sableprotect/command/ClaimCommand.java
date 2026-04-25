@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.aerodev.sableprotect.util.SubLevelLookup;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -31,7 +32,7 @@ public final class ClaimCommand {
         // Check name uniqueness
         if (registry.isNameTaken(name)) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.claim.name_taken", name), false);
+                    Lang.tr("sableprotect.claim.name_taken", name), false);
             return 0;
         }
 
@@ -39,7 +40,7 @@ public final class ClaimCommand {
         final SubLevel target = SubLevelLookup.getTargetedSubLevel(player);
         if (!(target instanceof ServerSubLevel serverSubLevel)) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.claim.no_target"), false);
+                    Lang.tr("sableprotect.claim.no_target"), false);
             return 0;
         }
 
@@ -47,7 +48,7 @@ public final class ClaimCommand {
         final ClaimData existing = ClaimData.read(serverSubLevel);
         if (existing != null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.claim.already_claimed", existing.getName()), false);
+                    Lang.tr("sableprotect.claim.already_claimed", existing.getName()), false);
             return 0;
         }
 
@@ -55,7 +56,7 @@ public final class ClaimCommand {
         final double mass = serverSubLevel.getMassTracker().getMass();
         if (mass < SableProtectConfig.MINIMUM_CLAIM_MASS.get()) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.claim.too_small"), false);
+                    Lang.tr("sableprotect.claim.too_small"), false);
             return 0;
         }
 
@@ -65,7 +66,7 @@ public final class ClaimCommand {
         ClaimData.write(serverSubLevel, data);
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.claim.success", name), false);
+                Lang.tr("sableprotect.claim.success", name), false);
         return 1;
     }
 }

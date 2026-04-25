@@ -52,7 +52,8 @@ dev.aerodev.sableprotect/
 │   ├── MyClaimsCommand.java        # /sp myclaims
 │   ├── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
 │   ├── BypassCommand.java          # /sp bypass (OP-only, toggle admin claim-protection bypass)
-│   └── StealCommand.java           # /sp steal (Phase 6, requires NML + on-board + crew absent)
+│   ├── StealCommand.java           # /sp steal (Phase 6, requires NML + on-board + crew absent)
+│   └── ReloadCommand.java          # /sp reload (Phase 8, OP-only force config + lang reload)
 ├── config/
 │   └── SableProtectConfig.java     # ModConfigSpec (minimum mass, freeze duration, border inset)
 ├── freeze/
@@ -68,11 +69,15 @@ dev.aerodev.sableprotect/
 │       ├── RopeBreakPacketMixin.java
 │       ├── SteeringWheelPacketMixin.java
 │       └── ThrottleLeverSignalPacketMixin.java
+├── permissions/
+│   ├── Permissions.java            # Public permission gate; LP-aware with vanilla fallback (Phase 9)
+│   └── LuckPermsBridge.java        # Direct LP API — only loaded when LP is installed (Phase 9)
 └── util/
     ├── SubLevelLookup.java         # Physics-based spatial lookup for targeting sub-levels
     ├── DebugHelper.java            # Per-player debug toggle state
     ├── BypassHelper.java           # Per-player admin-bypass opt-in state (session-only)
-    └── NoMansLand.java             # Config-backed rectangle test (Phase 6)
+    ├── NoMansLand.java             # Config-backed rectangle test (Phase 6)
+    └── Lang.java                   # Server-side string lookup (Phase 8) — bundles en_us.json
 ```
 
 ---
@@ -313,7 +318,8 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 ├── unclaim <name: string> [CONFIRM]
 ├── steal <name: string> [CONFIRM]
 ├── debug                                                              (OP)
-└── bypass                                                             (OP)
+├── bypass                                                             (OP)
+└── reload                                                             (OP)
 ```
 
 **Targeting for `/sp claim` and `/sp info` (no name):**
@@ -672,3 +678,43 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 2. Unload a sub-level by getting far away from it. Run `/sp edit <name> rename Foo` from a different player. Walk back to reload the sub-level — verify `userDataTag` now reflects the new name.
 3. Restart the server with claimed sub-levels in unloaded chunks — verify `/sp myclaims` still shows them.
 4. Disassemble a claimed sub-level via the Physics Assembler — verify the claim is removed from storage (next `/sp myclaims` doesn't list it).
+
+---
+
+### Phase 8: English Strings, Toggle Cascade, Hot Reload
+**Goal:** Three small UX/operations improvements.
+
+**Deliverables:**
+- `util/Lang.java` — bundles `en_us.json` inside the jar and resolves keys to English `Component.literal` at runtime, since the client never receives the lang resource for a server-only mod *(implemented; all 14 source files migrated from `Component.translatable(...)` to `Lang.tr(...)`)*
+- `EditCommand.executeToggle` enforces the invariant `!blocks ⇒ !interactions ∧ !inventories`. Unprotecting blocks cascades down; protecting interactions or inventories cascades up to also protect blocks *(implemented)*
+- `/sp reload` (OP-only) calls `ConfigTracker.INSTANCE.loadConfigs(ModConfig.Type.COMMON, FMLPaths.CONFIGDIR.get())` to force-reread the config TOML, then calls `Lang.reload()`, then prints current NML status + rectangle bounds for verification *(implemented)*
+
+**Implementation notes:**
+- `Lang.tr` mimics Minecraft's `%s` and `%N$s` substitution via `String.format`. Component arguments lose their styling (rendered as plain text via `Component.getString()`); for messages that need colored substitutions, build the component by hand at the call site.
+- The toggle cascade only applies on user-driven edits via `/sp edit`. Existing claims with violating combinations from earlier versions are not auto-migrated; toggling will normalize them on next change.
+- NeoForge's `ConfigFileTypeHandler` already auto-watches the config TOML, so editing the file usually triggers a reload without `/sp reload`. The command is a manual fallback that also covers the case where the watcher missed an edit (rare on Windows network drives, etc.).
+
+---
+
+### Phase 9: LuckPerms Integration
+**Goal:** Replace the OP-level (`hasPermissions(2)` / `hasPermissions(4)`) gates with permission-node checks that consult LuckPerms when it's installed and fall back to the vanilla level when it isn't.
+
+**Deliverables:**
+- `permissions/Permissions.java` — `Permissions.has(player, node, fallbackLevel)` and `has(source, node, fallbackLevel)`. LuckPerms availability is cached after first `ModList.isLoaded("luckperms")` call. *(implemented)*
+- `permissions/LuckPermsBridge.java` — direct LuckPerms API call (`LuckPermsProvider.get().getUserManager().getUser(uuid).getCachedData().getPermissionData().checkPermission(node)`), isolated in its own class so it isn't loaded when LP is absent (avoids `NoClassDefFoundError`). *(implemented)*
+- Soft mod-dep on `luckperms` in `neoforge.mods.toml` (optional, side=SERVER), `compileOnly("net.luckperms:api:5.5")` plus the `https://repo.lucko.me/` Maven repo in `build.gradle`. *(implemented)*
+- `Permissions.Nodes` constants for all gated features: `command.debug`, `command.bypass`, `command.reload`, `command.claimuuid`, `edit.override`, `bypass.use`. *(implemented)*
+- Migrated call sites: `DebugCommand`, `BypassCommand`, `ReloadCommand`, `ClaimUuidCommand`, `EditCommand` (override gate at suggestion time + non-owner branch), `ProtectionHelper.isAdminBypass`. *(implemented)*
+
+**Tristate semantics:**
+- LP returns `TRUE` → grant.
+- LP returns `FALSE` → deny (overrides OP).
+- LP returns `UNDEFINED` → fall back to the vanilla `hasPermissions(level)` check.
+
+This means an existing OP-only deployment without LuckPerms node configuration keeps working unchanged — OPs still pass via the vanilla level fallback. Once an admin adds explicit grant/deny entries in LP, those take precedence.
+
+**Implementation notes:**
+- `LuckPermsBridge` references LP types directly (`LuckPerms`, `User`, `Tristate`) and lives in its own file so the JVM doesn't try to resolve those types unless `Permissions.has` actually dispatches to it. The dispatch is gated by `Permissions.isLuckPermsAvailable()`, which only references `ModList`.
+- `LuckPermsBridge.query` swallows any throwable (LP not yet initialized, user not loaded, …) and returns `Tristate.UNDEFINED`, so a transient LP error degrades to vanilla-level behavior rather than denying everything.
+- Console / non-player command sources skip the LP check entirely and fall through to `source.hasPermission(level)` — LP nodes don't apply to non-players.
+- The existing `BypassHelper` per-player session toggle is unchanged. The eligibility check that was `player.hasPermissions(adminBypassPermissionLevel)` now goes through `Permissions.has(player, BYPASS_USE, adminBypassPermissionLevel)`.

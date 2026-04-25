@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
@@ -62,7 +63,7 @@ public final class StealCommand {
         if (!preflightChecks(player, name, target)) return 0;
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.steal.confirm", name), false);
+                Lang.tr("sableprotect.steal.confirm", name), false);
         return 1;
     }
 
@@ -84,7 +85,7 @@ public final class StealCommand {
         ClaimData.write(target.subLevel, target.data);
 
         // Notify previous owner + members in red. Skips offline players silently.
-        final Component warning = Component.translatable(
+        final Component warning = Lang.tr(
                 "sableprotect.steal.notification", player.getGameProfile().getName(), name)
                 .withStyle(ChatFormatting.RED);
         for (final UUID uuid : notify) {
@@ -94,7 +95,7 @@ public final class StealCommand {
         }
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.steal.success", name), false);
+                Lang.tr("sableprotect.steal.success", name), false);
         InfoCommand.sendInfoWindow(player, target.subLevel.getUniqueId(), target.subLevel, target.data);
         return 1;
     }
@@ -105,18 +106,18 @@ public final class StealCommand {
                                           final ClaimRegistry registry) {
         final UUID subLevelId = registry.getSubLevelByName(name);
         if (subLevelId == null) {
-            player.displayClientMessage(Component.translatable("sableprotect.not_found", name), false);
+            player.displayClientMessage(Lang.tr("sableprotect.not_found", name), false);
             return null;
         }
         final ClaimData data = registry.getClaim(subLevelId);
         if (data == null) {
-            player.displayClientMessage(Component.translatable("sableprotect.not_found", name), false);
+            player.displayClientMessage(Lang.tr("sableprotect.not_found", name), false);
             return null;
         }
         // Steal requires the ship to be loaded — on-board check needs a real sub-level.
         final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
         if (subLevel == null) {
-            player.displayClientMessage(Component.translatable("sableprotect.not_loaded", name), false);
+            player.displayClientMessage(Lang.tr("sableprotect.not_loaded", name), false);
             return null;
         }
         return new ResolvedTarget(subLevel, data);
@@ -130,13 +131,13 @@ public final class StealCommand {
                                            final ResolvedTarget target) {
         if (target.data.getOwner().equals(player.getUUID())) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.steal.already_owner"), false);
+                    Lang.tr("sableprotect.steal.already_owner"), false);
             return false;
         }
 
         if (!NoMansLand.isEnabled() || !NoMansLand.contains(target.subLevel)) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.steal.not_in_nml", name), false);
+                    Lang.tr("sableprotect.steal.not_in_nml", name), false);
             return false;
         }
 
@@ -145,7 +146,7 @@ public final class StealCommand {
         if (ridingOrTracking == null
                 || !ridingOrTracking.getUniqueId().equals(target.subLevel.getUniqueId())) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.steal.not_on_board", name), false);
+                    Lang.tr("sableprotect.steal.not_on_board", name), false);
             return false;
         }
 
@@ -157,7 +158,7 @@ public final class StealCommand {
                     ? blockerPlayer.getGameProfile().getName()
                     : blocker.toString().substring(0, 8);
             player.displayClientMessage(
-                    Component.translatable("sableprotect.steal.crew_present", blockerName), false);
+                    Lang.tr("sableprotect.steal.crew_present", blockerName), false);
             return false;
         }
 

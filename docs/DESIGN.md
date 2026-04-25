@@ -91,6 +91,12 @@ If the named sub-level is outside the vanilla world border, teleports it to the 
 ### `/sp edit <name> blocks|interactions|inventories protected|unprotected`
 Toggles the named protection category on or off. Owner only.
 
+The three toggles are linked by an invariant: **a ship cannot have Blocks unprotected while Interactions or Inventories are protected.** This avoids nonsensical configurations like "anyone can break my ship's blocks but only members can press buttons." Toggle changes cascade to maintain it:
+- *Unprotecting Blocks* automatically unprotects Interactions and Inventories.
+- *Protecting Interactions* or *Protecting Inventories* automatically protects Blocks.
+- *Protecting Blocks* leaves the others unchanged (any combination is then valid).
+- *Unprotecting Interactions* or *Unprotecting Inventories* leaves the others unchanged.
+
 ### `/sp edit <name> rename <newname>`
 Renames the sub-level. The new name must not already be taken globally. Owner only.
 
@@ -153,11 +159,27 @@ Toggles debug mode for the issuing player. When enabled, sub-level lookups and p
 
 ### Admin bypass
 
-Eligible admins can bypass all four protection categories — break/place blocks, interact with anything, open inventories, disassemble, merge — on any claim regardless of ownership. The bypass is **opt-in per session**: admins are subject to normal protection rules until they actively enable it via `/sp bypass`, and the toggle resets on server restart so an admin always starts with protection applied. To be eligible, the player's vanilla permission level must meet or exceed `adminBypassPermissionLevel` (default 4 — full ops only). Setting the config to 5 disables the bypass entirely.
+Eligible admins can bypass all four protection categories — break/place blocks, interact with anything, open inventories, disassemble, merge — on any claim regardless of ownership. The bypass is **opt-in per session**: admins are subject to normal protection rules until they actively enable it via `/sp bypass`, and the toggle resets on server restart so an admin always starts with protection applied. Eligibility is checked via the LuckPerms node `sableprotect.bypass.use` (when LuckPerms is installed) or, as a fallback, the vanilla permission level configured by `adminBypassPermissionLevel` (default 4 — full ops only). Setting the config to 5 disables the bypass entirely.
+
+### Permissions
+
+OP-level features can be gated through LuckPerms when it's installed; otherwise they fall back to vanilla permission levels. LuckPerms decisions take precedence — granting a node enables the feature for non-OPs, denying it (e.g., `sableprotect.command.bypass = false`) revokes it even from OPs. When LuckPerms hasn't expressed an opinion (`UNDEFINED`), the vanilla level is consulted so existing op-only setups keep working without configuration.
+
+| Node                            | Vanilla fallback level | What it gates                                                  |
+| ------------------------------- | ---------------------- | -------------------------------------------------------------- |
+| `sableprotect.command.debug`    | 2                      | `/sp debug` toggle                                             |
+| `sableprotect.command.bypass`   | 2                      | `/sp bypass` command (still requires `sableprotect.bypass.use` to take effect) |
+| `sableprotect.command.reload`   | 2                      | `/sp reload`                                                   |
+| `sableprotect.command.claimuuid`| 2                      | `/sp claimuuid` (claim by UUID, override existing)              |
+| `sableprotect.edit.override`    | 2                      | Edit any claim regardless of ownership (`/sp edit ...` on a claim you don't own) |
+| `sableprotect.bypass.use`       | `adminBypassPermissionLevel` (default 4) | Eligibility for the actual claim-protection bypass effect |
 
 ### `/sp bypass`
 
 OP-only (level 2 to run the command, but the actual bypass effect requires meeting `adminBypassPermissionLevel`). Toggles admin claim-protection bypass for the issuing player. State is per-player and does not persist across server restarts.
+
+### `/sp reload`
+OP-only. Force-reloads the mod's configuration from disk and resets in-memory caches. Useful after editing `config/sableprotect-common.toml` to apply the new values without restarting the server. NeoForge's file watcher normally picks up edits automatically; this command is a manual fallback that also re-reads the bundled language strings.
 
 ### `/sp claimuuid <uuid> <name> [<player> | owneruuid <owner-uuid>]`
 Claims the sub-level with the given UUID, bypassing the look-based targeting used by `/sp claim`. Useful for claiming sub-levels that are difficult to target visually. The name must still be globally unique. Owner options:

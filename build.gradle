@@ -46,6 +46,12 @@ repositories {
         url = 'https://maven.blamejared.com'
     }
 
+    // LuckPerms API — soft dependency; if the user has LuckPerms installed our
+    // permission checks delegate to it.
+    maven {
+        name = 'LuckPerms'
+        url = 'https://repo.lucko.me/'
+    }
 }
 
 base {
@@ -115,6 +121,10 @@ dependencies {
     compileOnly("foundry.veil:veil-neoforge-${project.minecraft_version}:${project.veil_version}") {
         transitive = false
     }
+
+    // LuckPerms — compile-only soft dependency. The bridge class is only loaded when
+    // ModList reports LuckPerms is installed, so the mod runs cleanly without it.
+    compileOnly("net.luckperms:api:${project.luckperms_version}")
 }
 
 def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {

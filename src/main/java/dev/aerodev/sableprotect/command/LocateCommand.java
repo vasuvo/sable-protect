@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimRole;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -45,28 +46,28 @@ public final class LocateCommand {
         final UUID subLevelId = registry.getSubLevelByName(name);
         if (subLevelId == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_found", name), false);
+                    Lang.tr("sableprotect.not_found", name), false);
             return 0;
         }
 
         final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
         if (subLevel == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_loaded", name), false);
+                    Lang.tr("sableprotect.not_loaded", name), false);
             return 0;
         }
 
         final ClaimData data = ClaimData.read(subLevel);
         if (data == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.not_found", name), false);
+                    Lang.tr("sableprotect.not_found", name), false);
             return 0;
         }
 
         final ClaimRole role = data.getRole(player.getUUID());
         if (role == ClaimRole.DEFAULT) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.locate.not_authorized"), false);
+                    Lang.tr("sableprotect.locate.not_authorized"), false);
             return 0;
         }
 
@@ -76,7 +77,7 @@ public final class LocateCommand {
         final int z = (int) Math.floor(pos.z());
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.locate.success", name,
+                Lang.tr("sableprotect.locate.success", name,
                         Component.literal(x + ", " + y + ", " + z).withStyle(ChatFormatting.AQUA)),
                 false);
         return 1;

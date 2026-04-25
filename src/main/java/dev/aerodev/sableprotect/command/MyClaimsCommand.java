@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.command;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.util.Lang;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -31,7 +32,7 @@ public final class MyClaimsCommand {
 
         if (owned.isEmpty() && memberOf.isEmpty()) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.myclaims.none"), false);
+                    Lang.tr("sableprotect.myclaims.none"), false);
             return 0;
         }
 
@@ -41,7 +42,7 @@ public final class MyClaimsCommand {
         // Owned
         if (!owned.isEmpty()) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.myclaims.owned")
+                    Lang.tr("sableprotect.myclaims.owned")
                             .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
             for (final UUID subLevelId : owned) {
                 final String name = registry.getNameByUuid(subLevelId);
@@ -54,7 +55,7 @@ public final class MyClaimsCommand {
         // Member of
         if (!memberOf.isEmpty()) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.myclaims.member_of")
+                    Lang.tr("sableprotect.myclaims.member_of")
                             .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), false);
             for (final UUID subLevelId : memberOf) {
                 final String name = registry.getNameByUuid(subLevelId);

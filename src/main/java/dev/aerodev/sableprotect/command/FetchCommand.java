@@ -7,6 +7,7 @@ import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimRole;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
 import dev.aerodev.sableprotect.freeze.FreezeManager;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.ryanhcode.sable.api.physics.PhysicsPipeline;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
@@ -58,25 +59,25 @@ public final class FetchCommand {
                                final ClaimRegistry registry, final FreezeManager freezeManager) {
         final UUID subLevelId = registry.getSubLevelByName(name);
         if (subLevelId == null) {
-            player.displayClientMessage(Component.translatable("sableprotect.not_found", name), false);
+            player.displayClientMessage(Lang.tr("sableprotect.not_found", name), false);
             return 0;
         }
 
         final ServerSubLevel subLevel = UnclaimCommand.findSubLevel(player, subLevelId);
         if (subLevel == null) {
-            player.displayClientMessage(Component.translatable("sableprotect.not_loaded", name), false);
+            player.displayClientMessage(Lang.tr("sableprotect.not_loaded", name), false);
             return 0;
         }
 
         final ClaimData data = ClaimData.read(subLevel);
         if (data == null) {
-            player.displayClientMessage(Component.translatable("sableprotect.not_found", name), false);
+            player.displayClientMessage(Lang.tr("sableprotect.not_found", name), false);
             return 0;
         }
 
         if (data.getRole(player.getUUID()) == ClaimRole.DEFAULT) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.fetch.not_authorized"), false);
+                    Lang.tr("sableprotect.fetch.not_authorized"), false);
             return 0;
         }
 
@@ -87,13 +88,13 @@ public final class FetchCommand {
 
         if (isWithinBorder(border, currentPos.x(), currentPos.z())) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.fetch.inside_border"), false);
+                    Lang.tr("sableprotect.fetch.inside_border"), false);
             return 0;
         }
 
         if (freezeManager.isFrozen(subLevelId)) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.fetch.already_frozen", name), false);
+                    Lang.tr("sableprotect.fetch.already_frozen", name), false);
             return 0;
         }
 
@@ -109,7 +110,7 @@ public final class FetchCommand {
         final ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.fetch.failed"), false);
+                    Lang.tr("sableprotect.fetch.failed"), false);
             return 0;
         }
         final PhysicsPipeline pipeline = container.physicsSystem().getPipeline();
@@ -123,12 +124,12 @@ public final class FetchCommand {
         final boolean frozen = freezeManager.freeze(subLevel, destination, orientation, durationTicks, currentTick);
         if (!frozen) {
             player.displayClientMessage(
-                    Component.translatable("sableprotect.fetch.freeze_unavailable"), false);
+                    Lang.tr("sableprotect.fetch.freeze_unavailable"), false);
             return 0;
         }
 
         player.displayClientMessage(
-                Component.translatable("sableprotect.fetch.success", name,
+                Lang.tr("sableprotect.fetch.success", name,
                         Component.literal((int) targetX + ", " + targetY + ", " + (int) targetZ)
                                 .withStyle(ChatFormatting.AQUA),
                         durationSeconds),

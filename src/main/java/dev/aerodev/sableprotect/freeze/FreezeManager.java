@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.freeze;
 
 import dev.aerodev.sableprotect.SableProtectMod;
 import dev.aerodev.sableprotect.claim.ClaimData;
+import dev.aerodev.sableprotect.util.Lang;
 import dev.ryanhcode.sable.api.physics.PhysicsPipeline;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
@@ -138,7 +139,7 @@ public final class FreezeManager {
             final ServerPlayer player = server.getPlayerList().getPlayer(playerUuid);
             if (player != null) {
                 player.displayClientMessage(
-                        Component.translatable("sableprotect.fetch.freeze_expired", state.displayName), false);
+                        Lang.tr("sableprotect.fetch.freeze_expired", state.displayName), false);
             }
         }
     }
