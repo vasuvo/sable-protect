@@ -112,9 +112,16 @@ public final class InfoCommand {
                                 HoverEvent.Action.SHOW_TEXT,
                                 Component.literal("Click to copy sub-level UUID"))));
 
-        // Position-dependent annotations (NML, world border, on-board) require a loaded sub-level.
+        // Position-dependent annotations (NML, world border, on-board) work for both loaded
+        // (live position) and unloaded (cached position) ships.
         final boolean loaded = subLevel != null;
-        final boolean inNoMansLand = loaded && NoMansLand.contains(subLevel);
+        final boolean inNoMansLand;
+        if (loaded) {
+            inNoMansLand = NoMansLand.contains(subLevel);
+        } else {
+            final var cached = data.getLastKnownPosition();
+            inNoMansLand = cached != null && NoMansLand.contains(cached.x, cached.z);
+        }
 
         if (!loaded) {
             header = header
