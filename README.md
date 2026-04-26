@@ -67,4 +67,4 @@ OP-level by default. With LuckPerms installed, each maps to a permission node â€
 
 ## License
 
-GPL-3.0. See [LICENSE](LICENSE).
+LGPL-2.1. See [LICENSE](LICENSE).
