@@ -23,6 +23,7 @@
   "sableprotect.edit.already_owner": "That player is already the owner.",
   "sableprotect.edit.already_member": "%s is already a member.",
   "sableprotect.edit.not_a_member": "%s is not a member.",
+  "sableprotect.edit.unknown_player": "No known player named '%s'. Players must have logged in to the server at least once.",
   "sableprotect.myclaims.none": "You have no claims.",
   "sableprotect.myclaims.owned": "Owned:",
   "sableprotect.myclaims.member_of": "Member of:",

@@ -11,7 +11,6 @@ import dev.aerodev.sableprotect.util.Lang;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -77,25 +76,63 @@ public final class EditCommand {
                                                 registry))))
                         // /sp edit <name> changeowner <player>
                         .then(Commands.literal("changeowner")
-                                .then(Commands.argument("player", EntityArgument.player())
+                                .then(Commands.argument("player", StringArgumentType.string())
+                                        .suggests(suggestKnownPlayers())
                                         .executes(ctx -> executeChangeOwner(ctx.getSource().getPlayerOrException(),
                                                 StringArgumentType.getString(ctx, "name"),
-                                                EntityArgument.getPlayer(ctx, "player"),
+                                                StringArgumentType.getString(ctx, "player"),
                                                 registry))))
                         // /sp edit <name> addmember <player>
                         .then(Commands.literal("addmember")
-                                .then(Commands.argument("player", EntityArgument.player())
+                                .then(Commands.argument("player", StringArgumentType.string())
+                                        .suggests(suggestKnownPlayers())
                                         .executes(ctx -> executeAddMember(ctx.getSource().getPlayerOrException(),
                                                 StringArgumentType.getString(ctx, "name"),
-                                                EntityArgument.getPlayer(ctx, "player"),
+                                                StringArgumentType.getString(ctx, "player"),
                                                 registry))))
                         // /sp edit <name> removemember <player>
                         .then(Commands.literal("removemember")
-                                .then(Commands.argument("player", EntityArgument.player())
+                                .then(Commands.argument("player", StringArgumentType.string())
+                                        .suggests(suggestCurrentMembers(registry))
                                         .executes(ctx -> executeRemoveMember(ctx.getSource().getPlayerOrException(),
                                                 StringArgumentType.getString(ctx, "name"),
-                                                EntityArgument.getPlayer(ctx, "player"),
+                                                StringArgumentType.getString(ctx, "player"),
                                                 registry)))));
+    }
+
+    /** Suggest online players + members of any current claim (a small superset that's
+     *  always immediately useful at the keyboard; admins can also type any cached name). */
+    private static com.mojang.brigadier.suggestion.SuggestionProvider<CommandSourceStack> suggestKnownPlayers() {
+        return (ctx, builder) -> {
+            for (final ServerPlayer p : ctx.getSource().getServer().getPlayerList().getPlayers()) {
+                final String name = p.getGameProfile().getName();
+                if (name != null) builder.suggest(name);
+            }
+            return builder.buildFuture();
+        };
+    }
+
+    /** Tab-completion for /sp edit <claim> removemember: suggest the actual members of the
+     *  named claim by display name. */
+    private static com.mojang.brigadier.suggestion.SuggestionProvider<CommandSourceStack> suggestCurrentMembers(
+            final ClaimRegistry registry) {
+        return (ctx, builder) -> {
+            final String claimName;
+            try {
+                claimName = StringArgumentType.getString(ctx, "name");
+            } catch (final Throwable t) {
+                return builder.buildFuture();
+            }
+            final java.util.UUID subLevelId = registry.getSubLevelByName(claimName);
+            if (subLevelId == null) return builder.buildFuture();
+            final ClaimData data = registry.getClaim(subLevelId);
+            if (data == null) return builder.buildFuture();
+            final var server = ctx.getSource().getServer();
+            for (final java.util.UUID member : data.getMembers()) {
+                builder.suggest(dev.aerodev.sableprotect.util.Players.resolveDisplayName(server, member));
+            }
+            return builder.buildFuture();
+        };
     }
 
     private static int executeToggle(final ServerPlayer player, final String name,
@@ -156,70 +193,88 @@ public final class EditCommand {
     }
 
     private static int executeChangeOwner(final ServerPlayer player, final String name,
-                                          final ServerPlayer newOwner, final ClaimRegistry registry) {
+                                          final String targetName, final ClaimRegistry registry) {
         final ResolvedClaim resolved = resolve(player, name, registry);
         if (resolved == null) return 0;
 
+        final var newOwnerProfile = dev.aerodev.sableprotect.util.Players.resolveKnown(player.getServer(), targetName);
+        if (newOwnerProfile == null) {
+            player.displayClientMessage(Lang.tr("sableprotect.edit.unknown_player", targetName), false);
+            return 0;
+        }
+        final java.util.UUID newOwnerUuid = newOwnerProfile.getId();
+        final String newOwnerDisplay = newOwnerProfile.getName();
+
         final java.util.UUID previousOwner = resolved.data.getOwner();
-        resolved.data.setOwner(newOwner.getUUID());
+        resolved.data.setOwner(newOwnerUuid);
         // Remove new owner from members if they were a member
-        resolved.data.getMembers().remove(newOwner.getUUID());
+        resolved.data.getMembers().remove(newOwnerUuid);
         persist(registry, resolved);
 
         AuditLog.logTransfer(player.getServer(), name, resolved.subLevelId,
-                previousOwner, newOwner.getUUID(), "changeowner");
+                previousOwner, newOwnerUuid, "changeowner");
 
         player.displayClientMessage(
-                Lang.tr("sableprotect.edit.owner_changed", name,
-                        newOwner.getGameProfile().getName()), false);
+                Lang.tr("sableprotect.edit.owner_changed", name, newOwnerDisplay), false);
         InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
 
     private static int executeAddMember(final ServerPlayer player, final String name,
-                                        final ServerPlayer member, final ClaimRegistry registry) {
+                                        final String targetName, final ClaimRegistry registry) {
         final ResolvedClaim resolved = resolve(player, name, registry);
         if (resolved == null) return 0;
 
-        if (member.getUUID().equals(resolved.data.getOwner())) {
-            player.displayClientMessage(
-                    Lang.tr("sableprotect.edit.already_owner"), false);
+        final var memberProfile = dev.aerodev.sableprotect.util.Players.resolveKnown(player.getServer(), targetName);
+        if (memberProfile == null) {
+            player.displayClientMessage(Lang.tr("sableprotect.edit.unknown_player", targetName), false);
+            return 0;
+        }
+        final java.util.UUID memberUuid = memberProfile.getId();
+        final String memberDisplay = memberProfile.getName();
+
+        if (memberUuid.equals(resolved.data.getOwner())) {
+            player.displayClientMessage(Lang.tr("sableprotect.edit.already_owner"), false);
             return 0;
         }
 
-        if (!resolved.data.getMembers().add(member.getUUID())) {
+        if (!resolved.data.getMembers().add(memberUuid)) {
             player.displayClientMessage(
-                    Lang.tr("sableprotect.edit.already_member",
-                            member.getGameProfile().getName()), false);
+                    Lang.tr("sableprotect.edit.already_member", memberDisplay), false);
             return 0;
         }
 
         persist(registry, resolved);
 
         player.displayClientMessage(
-                Lang.tr("sableprotect.edit.member_added",
-                        member.getGameProfile().getName(), name), false);
+                Lang.tr("sableprotect.edit.member_added", memberDisplay, name), false);
         InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
 
     private static int executeRemoveMember(final ServerPlayer player, final String name,
-                                           final ServerPlayer member, final ClaimRegistry registry) {
+                                           final String targetName, final ClaimRegistry registry) {
         final ResolvedClaim resolved = resolve(player, name, registry);
         if (resolved == null) return 0;
 
-        if (!resolved.data.getMembers().remove(member.getUUID())) {
+        final var memberProfile = dev.aerodev.sableprotect.util.Players.resolveKnown(player.getServer(), targetName);
+        if (memberProfile == null) {
+            player.displayClientMessage(Lang.tr("sableprotect.edit.unknown_player", targetName), false);
+            return 0;
+        }
+        final java.util.UUID memberUuid = memberProfile.getId();
+        final String memberDisplay = memberProfile.getName();
+
+        if (!resolved.data.getMembers().remove(memberUuid)) {
             player.displayClientMessage(
-                    Lang.tr("sableprotect.edit.not_a_member",
-                            member.getGameProfile().getName()), false);
+                    Lang.tr("sableprotect.edit.not_a_member", memberDisplay), false);
             return 0;
         }
 
         persist(registry, resolved);
 
         player.displayClientMessage(
-                Lang.tr("sableprotect.edit.member_removed",
-                        member.getGameProfile().getName(), name), false);
+                Lang.tr("sableprotect.edit.member_removed", memberDisplay, name), false);
         InfoCommand.sendInfoWindow(player, resolved.subLevelId, resolved.subLevel, resolved.data);
         return 1;
     }
