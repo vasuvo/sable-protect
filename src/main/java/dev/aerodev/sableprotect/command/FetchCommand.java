@@ -286,6 +286,17 @@ public final class FetchCommand {
     }
 
     private static int findSafeY(final Level level, final int x, final int z) {
+        // Force-load the destination chunk so the heightmap query returns a real surface
+        // instead of falling back to {@code getMinBuildHeight()} for unloaded chunks
+        // (vanilla's behavior — see {@code ServerLevel#getHeight}).
+        if (level instanceof net.minecraft.server.level.ServerLevel server) {
+            try {
+                server.getChunkSource().getChunk(x >> 4, z >> 4,
+                        net.minecraft.world.level.chunk.status.ChunkStatus.FULL, true);
+            } catch (final Throwable ignored) {
+                // Fall through to the heightmap query — worst case we get -59 like before.
+            }
+        }
         final BlockPos surface = level.getHeightmapPos(
                 net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 new BlockPos(x, 0, z));

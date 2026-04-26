@@ -232,6 +232,14 @@ public final class GroundCommand {
 
     /** XZ stays put; Y is the surface heightmap plus an extra-generous buffer. */
     private static Vector3d computeGroundDestination(final Level level, final double x, final double z) {
+        // Force-load the chunk so the heightmap query gives a real surface instead of
+        // bottom-of-world for unloaded chunks (see vanilla's {@code ServerLevel#getHeight}).
+        if (level instanceof net.minecraft.server.level.ServerLevel server) {
+            try {
+                server.getChunkSource().getChunk(((int) Math.floor(x)) >> 4, ((int) Math.floor(z)) >> 4,
+                        net.minecraft.world.level.chunk.status.ChunkStatus.FULL, true);
+            } catch (final Throwable ignored) {}
+        }
         final BlockPos surface = level.getHeightmapPos(
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
                 new BlockPos((int) Math.floor(x), 0, (int) Math.floor(z)));
