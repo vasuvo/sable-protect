@@ -57,6 +57,15 @@ public class ClaimObserver implements SubLevelObserver {
         if (!(subLevel instanceof ServerSubLevel serverSubLevel)) return;
         final UUID id = serverSubLevel.getUniqueId();
 
+        // Log every server sub-level addition while there's any pending fetch — useful to
+        // verify Sable is actually deserializing the target sub-level when we force-load
+        // its chunk.
+        if (pendingFetchManager.hasAny()) {
+            SableProtectMod.LOGGER.info(
+                    "[sable-protect][debug] onSubLevelAdded: id={} pos={} (pending fetches active)",
+                    id, serverSubLevel.logicalPose().position());
+        }
+
         // Reconcile storage <-> userDataTag and update indexes. This handles three cases:
         //   * tag has a claim, storage doesn't  -> legacy migration into storage
         //   * storage has a claim, tag doesn't  -> claim was edited while unloaded, sync to tag
@@ -73,6 +82,8 @@ public class ClaimObserver implements SubLevelObserver {
             // teleport + freeze using the queued params.
             final PendingFetchManager.Entry pending = pendingFetchManager.consume(id);
             if (pending != null) {
+                SableProtectMod.LOGGER.info(
+                        "[sable-protect][debug]   matched pending fetch entry; dispatching now");
                 FetchCommand.executePendingFetch(serverSubLevel, pending, freezeManager);
             }
             return;

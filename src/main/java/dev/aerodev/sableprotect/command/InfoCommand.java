@@ -140,18 +140,22 @@ public final class InfoCommand {
                                             Lang.tr("sableprotect.info.nml_hover")))));
         }
 
-        if (isMemberOrOwner && loaded && isOutsideWorldBorder(subLevel)) {
+        // Fetch is shown when the ship is outside the world border — for loaded ships using
+        // the live position, for unloaded ships using the cached position (and only if we
+        // have the cached metadata needed to actually run the fetch).
+        final boolean fetchEligible = isMemberOrOwner && isOutsideAnyBorder(player, subLevel, data)
+                && (loaded || (data.getLastKnownPlotChunk() != null && data.getLastKnownDimension() != null));
+
+        if (fetchEligible) {
             header = header
                     .append(Component.literal("  "))
                     .append(makeButton("[Fetch from Out of Bounds]",
                             "Click to fetch this sub-level back inside the world border",
                             ClickEvent.Action.RUN_COMMAND,
                             "/sp fetch " + name));
-        }
-
-        // Ground button — visible to crew. Lit if no crew is within the absence radius;
-        // greyed out (with reason on hover) otherwise.
-        if (isMemberOrOwner) {
+        } else if (isMemberOrOwner) {
+            // Ground replaces Fetch when not outside-border. There's no reason to ground a
+            // ship that's already out of bounds — fetch is the better tool for that.
             header = header.append(Component.literal("  ")).append(formatGroundButton(player, subLevel, data, name));
         }
 
@@ -309,6 +313,24 @@ public final class InfoCommand {
         final var pos = subLevel.logicalPose().position();
         return pos.x() < border.getMinX() || pos.x() > border.getMaxX()
                 || pos.z() < border.getMinZ() || pos.z() > border.getMaxZ();
+    }
+
+    /**
+     * True if the ship is outside its world border, using the live position when loaded and
+     * the cached last-known position otherwise. Returns false if neither is available.
+     */
+    private static boolean isOutsideAnyBorder(final ServerPlayer viewer,
+                                              final @Nullable ServerSubLevel subLevel,
+                                              final ClaimData data) {
+        if (subLevel != null) return isOutsideWorldBorder(subLevel);
+        final var pos = data.getLastKnownPosition();
+        final var dim = data.getLastKnownDimension();
+        if (pos == null || dim == null) return false;
+        final var level = viewer.getServer().getLevel(dim);
+        if (level == null) return false;
+        final var border = level.getWorldBorder();
+        return pos.x < border.getMinX() || pos.x > border.getMaxX()
+                || pos.z < border.getMinZ() || pos.z > border.getMaxZ();
     }
 
     /**

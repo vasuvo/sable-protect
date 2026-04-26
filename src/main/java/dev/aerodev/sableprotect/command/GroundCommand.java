@@ -111,7 +111,7 @@ public final class GroundCommand {
         if (subLevel != null) {
             return executeLoaded(player, name, subLevel, data, freezeManager);
         }
-        return executeUnloaded(player, name, subLevelId, data, pendingFetchManager);
+        return executeUnloaded(player, name, subLevelId, data, pendingFetchManager, freezeManager);
     }
 
     private static int executeLoaded(final ServerPlayer player, final String name,
@@ -173,7 +173,8 @@ public final class GroundCommand {
 
     private static int executeUnloaded(final ServerPlayer player, final String name,
                                        final UUID subLevelId, final ClaimData data,
-                                       final PendingFetchManager pendingFetchManager) {
+                                       final PendingFetchManager pendingFetchManager,
+                                       final FreezeManager freezeManager) {
         final Vec3 lastPos = data.getLastKnownPosition();
         final ChunkPos plotChunk = data.getLastKnownPlotChunk();
         final ResourceKey<Level> dimension = data.getLastKnownDimension();
@@ -208,24 +209,22 @@ public final class GroundCommand {
         // Vertical-only target computed from cached XZ.
         final Vector3d destination = computeGroundDestination(level, lastPos.x, lastPos.z);
 
-        try {
-            level.setChunkForced(plotChunk.x, plotChunk.z, true);
-        } catch (final Throwable t) {
-            player.displayClientMessage(Lang.tr("sableprotect.fetch.failed"), false);
-            return 0;
-        }
-
         final int durationSeconds = SableProtectConfig.FREEZE_DURATION_SECONDS.get();
         final long durationTicks = durationSeconds * 20L;
         final long currentTick = server.getTickCount();
         final long deadline = currentTick + PendingFetchManager.DEFAULT_TIMEOUT_TICKS;
-        pendingFetchManager.register(new PendingFetchManager.Entry(
+
+        final PendingFetchManager.Entry entry = new PendingFetchManager.Entry(
                 subLevelId, dimension, plotChunk, destination,
                 /* snap upright on dispatch */ new Quaterniond(),
                 (int) durationTicks, player.getUUID(), name,
-                "sableprotect.ground.success", deadline));
+                "sableprotect.ground.success", deadline);
 
-        player.displayClientMessage(Lang.tr("sableprotect.ground.unloaded_loading", name), false);
+        final boolean dispatched = dev.aerodev.sableprotect.freeze.PendingFetchDispatcher.forceLoadAndDispatch(
+                player, level, subLevelId, plotChunk, entry, pendingFetchManager, freezeManager);
+        if (!dispatched) {
+            player.displayClientMessage(Lang.tr("sableprotect.ground.unloaded_loading", name), false);
+        }
         return 1;
     }
 

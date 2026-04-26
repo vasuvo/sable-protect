@@ -96,7 +96,7 @@ public final class FetchCommand {
         if (subLevel != null) {
             return executeLoaded(player, name, subLevel, freezeManager);
         }
-        return executeUnloaded(player, name, subLevelId, data, pendingFetchManager);
+        return executeUnloaded(player, name, subLevelId, data, pendingFetchManager, freezeManager);
     }
 
     /** Standard fetch: ship is loaded; teleport directly. */
@@ -146,7 +146,8 @@ public final class FetchCommand {
     /** Unloaded fetch: force-load the plot chunk, register a pending fetch, and dispatch on load. */
     private static int executeUnloaded(final ServerPlayer player, final String name,
                                        final UUID subLevelId, final ClaimData data,
-                                       final PendingFetchManager pendingFetchManager) {
+                                       final PendingFetchManager pendingFetchManager,
+                                       final FreezeManager freezeManager) {
         final Vec3 lastPos = data.getLastKnownPosition();
         final ChunkPos plotChunk = data.getLastKnownPlotChunk();
         final ResourceKey<Level> dimension = data.getLastKnownDimension();
@@ -172,26 +173,24 @@ public final class FetchCommand {
         // Compute the destination from the cached position (the same logic would run after load).
         final Vector3d destination = computeDestination(level, border, lastPos.x, lastPos.z);
 
-        // Force-load the plot chunk — Sable should reload the sub-level via newPopulatedChunk,
-        // which fires our ClaimObserver.onSubLevelAdded → consume the pending entry → dispatch.
-        try {
-            level.setChunkForced(plotChunk.x, plotChunk.z, true);
-        } catch (final Throwable t) {
-            player.displayClientMessage(Lang.tr("sableprotect.fetch.failed"), false);
-            return 0;
-        }
-
         final int durationSeconds = SableProtectConfig.FREEZE_DURATION_SECONDS.get();
         final long durationTicks = durationSeconds * 20L;
         final long currentTick = server.getTickCount();
         final long deadline = currentTick + PendingFetchManager.DEFAULT_TIMEOUT_TICKS;
 
-        pendingFetchManager.register(new PendingFetchManager.Entry(
+        final PendingFetchManager.Entry entry = new PendingFetchManager.Entry(
                 subLevelId, dimension, plotChunk, destination, /* orientation override */ null,
                 (int) durationTicks, player.getUUID(), name,
-                "sableprotect.fetch.success", deadline));
+                "sableprotect.fetch.success", deadline);
 
-        player.displayClientMessage(Lang.tr("sableprotect.fetch.unloaded_loading", name), false);
+        // Force-load + try-sync-dispatch via the shared helper. If sync dispatch succeeds, the
+        // success message is sent inside executePendingFetch; otherwise we tell the player to
+        // wait for the async load.
+        final boolean dispatched = dev.aerodev.sableprotect.freeze.PendingFetchDispatcher.forceLoadAndDispatch(
+                player, level, subLevelId, plotChunk, entry, pendingFetchManager, freezeManager);
+        if (!dispatched) {
+            player.displayClientMessage(Lang.tr("sableprotect.fetch.unloaded_loading", name), false);
+        }
         return 1;
     }
 

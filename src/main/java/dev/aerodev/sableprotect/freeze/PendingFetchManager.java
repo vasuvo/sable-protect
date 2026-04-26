@@ -37,7 +37,7 @@ import java.util.UUID;
 public final class PendingFetchManager {
 
     /** Max ticks to wait for the sub-level to load after force-loading its plot chunk. */
-    public static final long DEFAULT_TIMEOUT_TICKS = 100; // 5 seconds
+    public static final long DEFAULT_TIMEOUT_TICKS = 300; // 15 seconds
 
     public record Entry(
             UUID subLevelId,
@@ -59,6 +59,10 @@ public final class PendingFetchManager {
         return pending.containsKey(subLevelId);
     }
 
+    public boolean hasAny() {
+        return !pending.isEmpty();
+    }
+
     public void register(final Entry entry) {
         pending.put(entry.subLevelId(), entry);
     }
@@ -75,7 +79,8 @@ public final class PendingFetchManager {
             final Entry entry = it.next().getValue();
             if (currentTick < entry.deadlineTick) continue;
 
-            // Sub-level didn't load in time — release the chunk and notify failure.
+            // Sub-level didn't load in time — log diagnostics, release the chunk, notify failure.
+            PendingFetchDispatcher.logTimeout(server.getLevel(entry.dimension), entry);
             releaseChunk(server, entry);
             final ServerPlayer requester = server.getPlayerList().getPlayer(entry.requester);
             if (requester != null) {

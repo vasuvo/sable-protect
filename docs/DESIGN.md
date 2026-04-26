@@ -90,12 +90,12 @@ Emergency landing. Teleports the named sub-level **straight down** to the surfac
 
 Available to the owner and all members. Requires the entire crew — *including the issuer and anyone currently on board* — to be outside `absenceRadius` blocks (default 100) of the ship; the command is intended as a backup option for when you literally can't reach your ship and is deliberately less polished than `/sp fetch`. Works on unloaded sub-levels using the same plot-chunk force-load mechanism as fetch.
 
-The info window's `[Ground]` button reflects eligibility live: lit (cyan, clickable) when no crew is within range; greyed-out (with a hover explaining the reason and a stability warning) otherwise.
+The info window's `[Ground]` button reflects eligibility live: lit (cyan, clickable) when no crew is within range; greyed-out (with a hover explaining the reason and a stability warning) otherwise. `[Ground]` is hidden entirely when the ship is outside the world border — `[Fetch from Out of Bounds]` is shown in its place there, since fetching is strictly better than grounding for an out-of-bounds ship.
 
 ### `/sp fetch <name>`
 If the named sub-level is outside the vanilla world border, teleports it to the nearest point just inside the border (approximately 50 blocks inward) and above ground at that location. Physics are then **completely frozen** for 1 minute, giving the owner time to board and shut off engines before the freeze expires. Available to the owner and all members.
 
-Works on unloaded sub-levels too: if the cached last-known position is outside the world border, the mod force-loads the sub-level's plot chunk to bring it back online, runs the teleport + freeze, and holds the chunk loaded for the freeze duration so the player can board. If the sub-level fails to load within ~5 seconds (e.g., the plot chunk is corrupted or has been deleted), the chunk force-load is released and a failure message is sent. A claim that has never been observed (no cached position) cannot be fetched while unloaded — load it once first.
+Works on unloaded sub-levels too: if the cached last-known position is outside the world border, the mod force-loads the sub-level's plot chunk to bring it back online, runs the teleport + freeze, and holds the chunk loaded for the freeze duration so the player can board. The info-window `[Fetch from Out of Bounds]` button appears in this case as well. If the sub-level fails to load within ~15 seconds (e.g., the plot chunk is corrupted or has been deleted), the chunk force-load is released and a failure message is sent. A claim that has never been observed (no cached position) cannot be fetched while unloaded — load it once first.
 
 ### `/sp edit <name> blocks|interactions|inventories protected|unprotected`
 Toggles the named protection category on or off. Owner only.
