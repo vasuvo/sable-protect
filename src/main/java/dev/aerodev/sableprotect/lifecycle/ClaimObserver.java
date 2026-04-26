@@ -123,8 +123,9 @@ public class ClaimObserver implements SubLevelObserver {
     private void cacheCurrentPosition(final ServerSubLevel subLevel, final ClaimData data, final UUID id) {
         final var pos = subLevel.logicalPose().position();
         data.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
-        // Plot chunk + dimension are needed to force-load the sub-level for an "unloaded fetch".
-        data.setLastKnownPlotChunk(subLevel.getPlot().getCenterChunk());
+        // The world chunk for force-loading is derived from the position (Sable's holding-chunk
+        // map is keyed by world chunk, not by plot grid index), so we only need to record the
+        // position + dimension here.
         data.setLastKnownDimension(subLevel.getLevel().dimension());
         registry.touchClaim(id);
     }
@@ -167,10 +168,9 @@ public class ClaimObserver implements SubLevelObserver {
         final ClaimData inherited = parentClaim.copy();
         final String newName = registry.generateSuffixedName(parentClaim.getName());
         inherited.setName(newName);
-        // Fragment is at its own pose / plot — overwrite the inherited cache.
+        // Fragment is at its own pose / dimension — overwrite the inherited cache.
         final var pos = fragment.logicalPose().position();
         inherited.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
-        inherited.setLastKnownPlotChunk(fragment.getPlot().getCenterChunk());
         inherited.setLastKnownDimension(fragment.getLevel().dimension());
         registry.putClaim(fragment.getUniqueId(), inherited);
         ClaimData.write(fragment, inherited);

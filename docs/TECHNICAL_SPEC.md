@@ -756,7 +756,7 @@ This means an existing OP-only deployment without LuckPerms node configuration k
 - `SableProtectMod` ticks `pendingFetchManager` alongside `freezeManager` and calls `cancelAll(server)` on stop to release any held chunks. *(implemented)*
 
 **Implementation notes:**
-- Sable stores sub-level data in a separate "plot grid" — the chunk that loads the sub-level isn't the chunk at its world position but a fixed plot-grid chunk recorded at allocation time. We capture it via `subLevel.getPlot().getCenterChunk()`.
+- Sable's `SubLevelHoldingChunkMap` stores unloaded sub-levels keyed by the **world chunk** at their last position — *not* by the plot grid index. The chunk we force-load is therefore derived from `lastKnownPosition.x/z >> 4`, not from `subLevel.getPlot().getCenterChunk()`. (An earlier draft of Phase 11 cached the plot-grid chunk, which had nonsensical coordinates like `(1280448, 1291200)` and caused vanilla to return `EmptyLevelChunk @ [0,0]` instead of loading anything; corrected in Phase 14.)
 - The 5-second timeout protects against pathological cases (corrupted plot chunk, dimension unloaded, etc.) — without it a misconfigured fetch could hold a chunk forced indefinitely.
 - The freeze takes ownership of the force-load on success: the chunk stays loaded for the 60s freeze, ensuring the player can board even if no other player is nearby. After the freeze expires, the chunk is released and the sub-level can re-unload normally if no players are around.
 - The `executePendingFetch` entry point uses the live orientation post-load (we don't cache orientation; it's already preserved by Sable's serialization).

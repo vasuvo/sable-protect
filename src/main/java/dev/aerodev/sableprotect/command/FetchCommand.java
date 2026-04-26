@@ -149,13 +149,17 @@ public final class FetchCommand {
                                        final PendingFetchManager pendingFetchManager,
                                        final FreezeManager freezeManager) {
         final Vec3 lastPos = data.getLastKnownPosition();
-        final ChunkPos plotChunk = data.getLastKnownPlotChunk();
         final ResourceKey<Level> dimension = data.getLastKnownDimension();
-        if (lastPos == null || plotChunk == null || dimension == null) {
-            // Pre-Phase-11 claim or one that's never been observed — can't force-load.
+        if (lastPos == null || dimension == null) {
+            // Never observed — can't force-load without a position.
             player.displayClientMessage(Lang.tr("sableprotect.fetch.unloaded_unavailable", name), false);
             return 0;
         }
+        // Sable's SubLevelHoldingChunkMap is keyed by world chunk — derive it from the cached
+        // position rather than from the plot grid index.
+        final ChunkPos plotChunk = new ChunkPos(
+                ((int) Math.floor(lastPos.x)) >> 4,
+                ((int) Math.floor(lastPos.z)) >> 4);
 
         final MinecraftServer server = player.getServer();
         final ServerLevel level = server.getLevel(dimension);

@@ -7,7 +7,6 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -31,9 +30,6 @@ public class ClaimData {
     private static final String LAST_POS_X = "x";
     private static final String LAST_POS_Y = "y";
     private static final String LAST_POS_Z = "z";
-    private static final String LAST_PLOT_CHUNK_KEY = "lastPlotChunk";
-    private static final String LAST_PLOT_CHUNK_X = "cx";
-    private static final String LAST_PLOT_CHUNK_Z = "cz";
     private static final String LAST_DIMENSION_KEY = "lastDim";
 
     private UUID owner;
@@ -42,13 +38,13 @@ public class ClaimData {
     private boolean blocksProtected;
     private boolean interactionsProtected;
     private boolean inventoriesProtected;
-    /** World-space position last seen for the sub-level. Null if never observed. */
+    /** World-space position last seen for the sub-level. Null if never observed. The world
+     *  chunk derived from this position ({@code (int)floor(x) >> 4}, {@code (int)floor(z) >> 4})
+     *  is also what we force-load to bring an unloaded sub-level back: Sable keys its
+     *  {@code SubLevelHoldingChunkMap} by world chunk, not by plot grid index. */
     private @Nullable Vec3 lastKnownPosition;
-    /** Plot chunk (in world chunk coords) where the sub-level's blocks live. Used to force-load
-     *  the sub-level via {@code level.setChunkForced} when fetching an unloaded ship. */
-    private @Nullable ChunkPos lastKnownPlotChunk;
     /** Dimension where the sub-level was last seen. Needed to address the right level when
-     *  we force-load the plot chunk. */
+     *  we force-load the chunk for an unloaded fetch/ground. */
     private @Nullable ResourceKey<Level> lastKnownDimension;
 
     public ClaimData(final UUID owner, final String name) {
@@ -133,14 +129,6 @@ public class ClaimData {
         this.lastKnownPosition = position;
     }
 
-    public @Nullable ChunkPos getLastKnownPlotChunk() {
-        return lastKnownPlotChunk;
-    }
-
-    public void setLastKnownPlotChunk(@Nullable final ChunkPos chunk) {
-        this.lastKnownPlotChunk = chunk;
-    }
-
     public @Nullable ResourceKey<Level> getLastKnownDimension() {
         return lastKnownDimension;
     }
@@ -175,12 +163,6 @@ public class ClaimData {
             pos.putDouble(LAST_POS_Z, lastKnownPosition.z);
             root.put(LAST_POS_KEY, pos);
         }
-        if (lastKnownPlotChunk != null) {
-            final CompoundTag chunk = new CompoundTag();
-            chunk.putInt(LAST_PLOT_CHUNK_X, lastKnownPlotChunk.x);
-            chunk.putInt(LAST_PLOT_CHUNK_Z, lastKnownPlotChunk.z);
-            root.put(LAST_PLOT_CHUNK_KEY, chunk);
-        }
         if (lastKnownDimension != null) {
             root.putString(LAST_DIMENSION_KEY, lastKnownDimension.location().toString());
         }
@@ -211,12 +193,6 @@ public class ClaimData {
                     pos.getDouble(LAST_POS_X),
                     pos.getDouble(LAST_POS_Y),
                     pos.getDouble(LAST_POS_Z));
-        }
-        if (root.contains(LAST_PLOT_CHUNK_KEY, Tag.TAG_COMPOUND)) {
-            final CompoundTag chunk = root.getCompound(LAST_PLOT_CHUNK_KEY);
-            data.lastKnownPlotChunk = new ChunkPos(
-                    chunk.getInt(LAST_PLOT_CHUNK_X),
-                    chunk.getInt(LAST_PLOT_CHUNK_Z));
         }
         if (root.contains(LAST_DIMENSION_KEY, Tag.TAG_STRING)) {
             final ResourceLocation rl = ResourceLocation.tryParse(root.getString(LAST_DIMENSION_KEY));
@@ -254,7 +230,6 @@ public class ClaimData {
         final ClaimData c = new ClaimData(owner, name, new HashSet<>(members),
                 blocksProtected, interactionsProtected, inventoriesProtected);
         c.lastKnownPosition = lastKnownPosition;
-        c.lastKnownPlotChunk = lastKnownPlotChunk;
         c.lastKnownDimension = lastKnownDimension;
         return c;
     }

@@ -64,7 +64,6 @@ public final class ClaimCommand {
         final ClaimData data = new ClaimData(player.getUUID(), name);
         final var pos = serverSubLevel.logicalPose().position();
         data.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
-        data.setLastKnownPlotChunk(serverSubLevel.getPlot().getCenterChunk());
         data.setLastKnownDimension(serverSubLevel.getLevel().dimension());
         registry.putClaim(serverSubLevel.getUniqueId(), data);
         ClaimData.write(serverSubLevel, data);

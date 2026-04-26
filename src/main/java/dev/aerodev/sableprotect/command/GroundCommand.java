@@ -176,12 +176,14 @@ public final class GroundCommand {
                                        final PendingFetchManager pendingFetchManager,
                                        final FreezeManager freezeManager) {
         final Vec3 lastPos = data.getLastKnownPosition();
-        final ChunkPos plotChunk = data.getLastKnownPlotChunk();
         final ResourceKey<Level> dimension = data.getLastKnownDimension();
-        if (lastPos == null || plotChunk == null || dimension == null) {
+        if (lastPos == null || dimension == null) {
             player.displayClientMessage(Lang.tr("sableprotect.fetch.unloaded_unavailable", name), false);
             return 0;
         }
+        final ChunkPos plotChunk = new ChunkPos(
+                ((int) Math.floor(lastPos.x)) >> 4,
+                ((int) Math.floor(lastPos.z)) >> 4);
 
         final MinecraftServer server = player.getServer();
         final ServerLevel level = server.getLevel(dimension);

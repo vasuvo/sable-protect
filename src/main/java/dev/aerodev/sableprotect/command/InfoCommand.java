@@ -144,7 +144,7 @@ public final class InfoCommand {
         // the live position, for unloaded ships using the cached position (and only if we
         // have the cached metadata needed to actually run the fetch).
         final boolean fetchEligible = isMemberOrOwner && isOutsideAnyBorder(player, subLevel, data)
-                && (loaded || (data.getLastKnownPlotChunk() != null && data.getLastKnownDimension() != null));
+                && (loaded || (data.getLastKnownPosition() != null && data.getLastKnownDimension() != null));
 
         if (fetchEligible) {
             header = header
