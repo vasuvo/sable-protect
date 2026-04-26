@@ -1,9 +1,14 @@
 package dev.aerodev.sableprotect.claim;
 
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +31,10 @@ public class ClaimData {
     private static final String LAST_POS_X = "x";
     private static final String LAST_POS_Y = "y";
     private static final String LAST_POS_Z = "z";
+    private static final String LAST_PLOT_CHUNK_KEY = "lastPlotChunk";
+    private static final String LAST_PLOT_CHUNK_X = "cx";
+    private static final String LAST_PLOT_CHUNK_Z = "cz";
+    private static final String LAST_DIMENSION_KEY = "lastDim";
 
     private UUID owner;
     private String name;
@@ -35,6 +44,12 @@ public class ClaimData {
     private boolean inventoriesProtected;
     /** World-space position last seen for the sub-level. Null if never observed. */
     private @Nullable Vec3 lastKnownPosition;
+    /** Plot chunk (in world chunk coords) where the sub-level's blocks live. Used to force-load
+     *  the sub-level via {@code level.setChunkForced} when fetching an unloaded ship. */
+    private @Nullable ChunkPos lastKnownPlotChunk;
+    /** Dimension where the sub-level was last seen. Needed to address the right level when
+     *  we force-load the plot chunk. */
+    private @Nullable ResourceKey<Level> lastKnownDimension;
 
     public ClaimData(final UUID owner, final String name) {
         this.owner = owner;
@@ -118,6 +133,22 @@ public class ClaimData {
         this.lastKnownPosition = position;
     }
 
+    public @Nullable ChunkPos getLastKnownPlotChunk() {
+        return lastKnownPlotChunk;
+    }
+
+    public void setLastKnownPlotChunk(@Nullable final ChunkPos chunk) {
+        this.lastKnownPlotChunk = chunk;
+    }
+
+    public @Nullable ResourceKey<Level> getLastKnownDimension() {
+        return lastKnownDimension;
+    }
+
+    public void setLastKnownDimension(@Nullable final ResourceKey<Level> dimension) {
+        this.lastKnownDimension = dimension;
+    }
+
     public CompoundTag serialize() {
         final CompoundTag root = new CompoundTag();
         root.putUUID(OWNER_KEY, owner);
@@ -143,6 +174,15 @@ public class ClaimData {
             pos.putDouble(LAST_POS_Y, lastKnownPosition.y);
             pos.putDouble(LAST_POS_Z, lastKnownPosition.z);
             root.put(LAST_POS_KEY, pos);
+        }
+        if (lastKnownPlotChunk != null) {
+            final CompoundTag chunk = new CompoundTag();
+            chunk.putInt(LAST_PLOT_CHUNK_X, lastKnownPlotChunk.x);
+            chunk.putInt(LAST_PLOT_CHUNK_Z, lastKnownPlotChunk.z);
+            root.put(LAST_PLOT_CHUNK_KEY, chunk);
+        }
+        if (lastKnownDimension != null) {
+            root.putString(LAST_DIMENSION_KEY, lastKnownDimension.location().toString());
         }
 
         return root;
@@ -171,6 +211,16 @@ public class ClaimData {
                     pos.getDouble(LAST_POS_X),
                     pos.getDouble(LAST_POS_Y),
                     pos.getDouble(LAST_POS_Z));
+        }
+        if (root.contains(LAST_PLOT_CHUNK_KEY, Tag.TAG_COMPOUND)) {
+            final CompoundTag chunk = root.getCompound(LAST_PLOT_CHUNK_KEY);
+            data.lastKnownPlotChunk = new ChunkPos(
+                    chunk.getInt(LAST_PLOT_CHUNK_X),
+                    chunk.getInt(LAST_PLOT_CHUNK_Z));
+        }
+        if (root.contains(LAST_DIMENSION_KEY, Tag.TAG_STRING)) {
+            final ResourceLocation rl = ResourceLocation.tryParse(root.getString(LAST_DIMENSION_KEY));
+            if (rl != null) data.lastKnownDimension = ResourceKey.create(Registries.DIMENSION, rl);
         }
         return data;
     }
@@ -204,6 +254,8 @@ public class ClaimData {
         final ClaimData c = new ClaimData(owner, name, new HashSet<>(members),
                 blocksProtected, interactionsProtected, inventoriesProtected);
         c.lastKnownPosition = lastKnownPosition;
+        c.lastKnownPlotChunk = lastKnownPlotChunk;
+        c.lastKnownDimension = lastKnownDimension;
         return c;
     }
 }

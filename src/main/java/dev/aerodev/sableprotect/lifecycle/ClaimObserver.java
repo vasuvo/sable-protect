@@ -3,8 +3,10 @@ package dev.aerodev.sableprotect.lifecycle;
 import dev.aerodev.sableprotect.SableProtectMod;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.command.FetchCommand;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
 import dev.aerodev.sableprotect.freeze.FreezeManager;
+import dev.aerodev.sableprotect.freeze.PendingFetchManager;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelObserver;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
@@ -37,14 +39,17 @@ public class ClaimObserver implements SubLevelObserver {
     private final ClaimRegistry registry;
     private final SubLevelContainer container;
     private final FreezeManager freezeManager;
+    private final PendingFetchManager pendingFetchManager;
 
     private final Map<UUID, PendingEntry> pending = new HashMap<>();
 
     public ClaimObserver(final ClaimRegistry registry, final SubLevelContainer container,
-                         final FreezeManager freezeManager) {
+                         final FreezeManager freezeManager,
+                         final PendingFetchManager pendingFetchManager) {
         this.registry = registry;
         this.container = container;
         this.freezeManager = freezeManager;
+        this.pendingFetchManager = pendingFetchManager;
     }
 
     @Override
@@ -62,6 +67,14 @@ public class ClaimObserver implements SubLevelObserver {
             // Refresh the cached position to the current pose so unloaded-info readouts
             // are accurate at least up to the most recent load.
             cacheCurrentPosition(serverSubLevel, existing, id);
+
+            // If a /sp fetch was queued against this sub-level while it was unloaded, the
+            // sub-level has now come back online via our force-loaded chunk — execute the
+            // teleport + freeze using the queued params.
+            final PendingFetchManager.Entry pending = pendingFetchManager.consume(id);
+            if (pending != null) {
+                FetchCommand.executePendingFetch(serverSubLevel, pending, freezeManager);
+            }
             return;
         }
 
@@ -99,6 +112,9 @@ public class ClaimObserver implements SubLevelObserver {
     private void cacheCurrentPosition(final ServerSubLevel subLevel, final ClaimData data, final UUID id) {
         final var pos = subLevel.logicalPose().position();
         data.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
+        // Plot chunk + dimension are needed to force-load the sub-level for an "unloaded fetch".
+        data.setLastKnownPlotChunk(subLevel.getPlot().getCenterChunk());
+        data.setLastKnownDimension(subLevel.getLevel().dimension());
         registry.touchClaim(id);
     }
 
@@ -140,9 +156,11 @@ public class ClaimObserver implements SubLevelObserver {
         final ClaimData inherited = parentClaim.copy();
         final String newName = registry.generateSuffixedName(parentClaim.getName());
         inherited.setName(newName);
-        // Fragment is at its own pose, not the parent's — overwrite the inherited cache.
+        // Fragment is at its own pose / plot — overwrite the inherited cache.
         final var pos = fragment.logicalPose().position();
         inherited.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
+        inherited.setLastKnownPlotChunk(fragment.getPlot().getCenterChunk());
+        inherited.setLastKnownDimension(fragment.getLevel().dimension());
         registry.putClaim(fragment.getUniqueId(), inherited);
         ClaimData.write(fragment, inherited);
 

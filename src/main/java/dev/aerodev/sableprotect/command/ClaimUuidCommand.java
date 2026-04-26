@@ -122,6 +122,8 @@ public final class ClaimUuidCommand {
         final ClaimData data = new ClaimData(ownerUuid, name);
         final var pos = subLevel.logicalPose().position();
         data.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
+        data.setLastKnownPlotChunk(subLevel.getPlot().getCenterChunk());
+        data.setLastKnownDimension(subLevel.getLevel().dimension());
         registry.putClaim(subLevel.getUniqueId(), data);
         ClaimData.write(subLevel, data);
 

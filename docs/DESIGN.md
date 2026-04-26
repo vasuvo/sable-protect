@@ -88,6 +88,8 @@ Clickable buttons pre-type or auto-submit the corresponding `/sp` command. Non-o
 ### `/sp fetch <name>`
 If the named sub-level is outside the vanilla world border, teleports it to the nearest point just inside the border (approximately 50 blocks inward) and above ground at that location. Physics are then **completely frozen** for 1 minute, giving the owner time to board and shut off engines before the freeze expires. Available to the owner and all members.
 
+Works on unloaded sub-levels too: if the cached last-known position is outside the world border, the mod force-loads the sub-level's plot chunk to bring it back online, runs the teleport + freeze, and holds the chunk loaded for the freeze duration so the player can board. If the sub-level fails to load within ~5 seconds (e.g., the plot chunk is corrupted or has been deleted), the chunk force-load is released and a failure message is sent. A claim that has never been observed (no cached position) cannot be fetched while unloaded — load it once first.
+
 ### `/sp edit <name> blocks|interactions|inventories protected|unprotected`
 Toggles the named protection category on or off. Owner only.
 
@@ -130,7 +132,7 @@ All claims are stored server-side in `<world>/data/sableprotect_claims.dat`, ind
 - `/sp myclaims`, `/sp info <name>`, and `/sp edit <name>` work for claimed sub-levels even when they're not currently loaded.
 - Edits made while a sub-level is unloaded (rename, change owner, toggle changes, member changes) are applied to the sub-level's `userDataTag` automatically the next time it loads.
 - A claim is only dropped when its sub-level is genuinely destroyed (disassembly, merge consumption, etc.) — a chunk unload, dimension change, or server restart never loses tracking.
-- `/sp fetch` and `/sp steal` still require the sub-level to be loaded since they touch its physics state; these report a clear "not loaded" error instead of pretending the claim doesn't exist.
+- `/sp fetch` works on unloaded sub-levels by force-loading the cached plot chunk; `/sp steal` still requires the ship to already be loaded (it needs an on-board check). Both report a clear "not loaded" error if the cached metadata isn't available.
 - The `Location` line in `/sp info` shows the last-known position even when the sub-level is unloaded — a snapshot is captured every time a sub-level is added to or removed from a container, so the displayed coordinates are accurate as of the most recent load/unload event.
 
 The info window shows a grey `[unloaded]` annotation next to the title when a claim's sub-level isn't currently loaded so the player understands why the position-dependent buttons are missing.

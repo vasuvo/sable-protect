@@ -7,6 +7,7 @@ import dev.aerodev.sableprotect.claim.ClaimStorage;
 import dev.aerodev.sableprotect.command.SpCommand;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
 import dev.aerodev.sableprotect.freeze.FreezeManager;
+import dev.aerodev.sableprotect.freeze.PendingFetchManager;
 import dev.aerodev.sableprotect.lifecycle.ClaimObserver;
 import dev.aerodev.sableprotect.lifecycle.SplitInheritanceQueue;
 import dev.aerodev.sableprotect.protection.BlockProtectionHandler;
@@ -41,6 +42,7 @@ public class SableProtectMod {
 
     private final ClaimRegistry claimRegistry = new ClaimRegistry();
     private final FreezeManager freezeManager = new FreezeManager();
+    private final PendingFetchManager pendingFetchManager = new PendingFetchManager();
 
     public SableProtectMod(final IEventBus modEventBus, final ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.COMMON, SableProtectConfig.SPEC);
@@ -56,7 +58,7 @@ public class SableProtectMod {
     private void commonSetup(final FMLCommonSetupEvent event) {
         LOGGER.info("[sable-protect] Registering sub-level observer");
         SableEventPlatform.INSTANCE.onSubLevelContainerReady((level, container) -> {
-            container.addObserver(new ClaimObserver(claimRegistry, container, freezeManager));
+            container.addObserver(new ClaimObserver(claimRegistry, container, freezeManager, pendingFetchManager));
             LOGGER.info("[sable-protect] Observer registered for level {}", level.dimension().location());
         });
 
@@ -85,13 +87,15 @@ public class SableProtectMod {
 
     @SubscribeEvent
     public void onRegisterCommands(final RegisterCommandsEvent event) {
-        SpCommand.register(event, claimRegistry, freezeManager);
+        SpCommand.register(event, claimRegistry, freezeManager, pendingFetchManager);
         LOGGER.info("[sable-protect] Commands registered");
     }
 
     @SubscribeEvent
     public void onServerTick(final ServerTickEvent.Post event) {
-        freezeManager.tick(event.getServer(), event.getServer().getTickCount());
+        final long tick = event.getServer().getTickCount();
+        freezeManager.tick(event.getServer(), tick);
+        pendingFetchManager.tick(event.getServer(), tick);
     }
 
     @SubscribeEvent
@@ -111,7 +115,8 @@ public class SableProtectMod {
     public void onServerStopping(final ServerStoppingEvent event) {
         // Clear constraints before the physics pipeline tears down so they don't persist
         // across restarts as orphaned anchors.
-        freezeManager.cancelAll();
+        freezeManager.cancelAll(event.getServer());
+        pendingFetchManager.cancelAll(event.getServer());
         claimRegistry.detach();
         SplitInheritanceQueue.clear();
     }

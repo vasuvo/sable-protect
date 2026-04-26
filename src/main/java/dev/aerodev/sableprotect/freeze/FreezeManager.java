@@ -9,9 +9,13 @@ import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.Pose3d;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Quaterniond;
 import org.joml.Quaterniondc;
 import org.joml.Vector3d;
@@ -39,15 +43,22 @@ public final class FreezeManager {
         final long expiryTick;
         final String displayName;
         final Set<UUID> notifyPlayers;
+        /** Plot chunk that this freeze is keeping force-loaded (from an unloaded fetch). Null if not. */
+        final @Nullable ChunkPos heldChunk;
+        final @Nullable ResourceKey<Level> heldChunkDimension;
 
         FreezeState(final ServerSubLevel subLevel, final Vector3dc pos, final Quaterniondc orientation,
-                    final long expiryTick, final String displayName, final Set<UUID> notifyPlayers) {
+                    final long expiryTick, final String displayName, final Set<UUID> notifyPlayers,
+                    final @Nullable ChunkPos heldChunk,
+                    final @Nullable ResourceKey<Level> heldChunkDimension) {
             this.subLevelRef = new WeakReference<>(subLevel);
             this.anchorPos = new Vector3d(pos);
             this.anchorOrientation = new Quaterniond(orientation);
             this.expiryTick = expiryTick;
             this.displayName = displayName;
             this.notifyPlayers = notifyPlayers;
+            this.heldChunk = heldChunk;
+            this.heldChunkDimension = heldChunkDimension;
         }
     }
 
@@ -66,6 +77,19 @@ public final class FreezeManager {
     public boolean freeze(final ServerSubLevel subLevel, final Vector3dc anchorPos,
                           final Quaterniondc anchorOrientation, final long durationTicks,
                           final long currentTick) {
+        return freeze(subLevel, anchorPos, anchorOrientation, durationTicks, currentTick, null, null);
+    }
+
+    /**
+     * Same as {@link #freeze(ServerSubLevel, Vector3dc, Quaterniondc, long, long)} but also
+     * holds {@code heldChunk} force-loaded for the freeze's lifetime. Used by the unloaded
+     * fetch path so the ship stays available for the player to board until the freeze ends.
+     */
+    public boolean freeze(final ServerSubLevel subLevel, final Vector3dc anchorPos,
+                          final Quaterniondc anchorOrientation, final long durationTicks,
+                          final long currentTick,
+                          final @Nullable ChunkPos heldChunk,
+                          final @Nullable ResourceKey<Level> heldChunkDimension) {
         if (active.containsKey(subLevel.getUniqueId())) return false;
 
         final ClaimData data = ClaimData.read(subLevel);
@@ -78,7 +102,8 @@ public final class FreezeManager {
 
         active.put(subLevel.getUniqueId(),
                 new FreezeState(subLevel, anchorPos, anchorOrientation,
-                        currentTick + durationTicks, displayName, notify));
+                        currentTick + durationTicks, displayName, notify,
+                        heldChunk, heldChunkDimension));
         return true;
     }
 
@@ -96,11 +121,13 @@ public final class FreezeManager {
 
             // Sub-level was garbage collected or unloaded — drop the freeze silently.
             if (subLevel == null || subLevel.isRemoved()) {
+                releaseHeldChunk(server, state);
                 it.remove();
                 continue;
             }
 
             if (currentTick >= state.expiryTick) {
+                releaseHeldChunk(server, state);
                 it.remove();
                 notifyExpired(server, state);
                 continue;
@@ -126,12 +153,34 @@ public final class FreezeManager {
 
     /** Drop a freeze without notification, e.g. when the sub-level is being removed. */
     public void cancel(final UUID subLevelUuid) {
+        // Note: caller doesn't have a server handle here, so we can't release a held chunk
+        // synchronously. The chunk-force will be cleaned up on server stop via cancelAll.
         active.remove(subLevelUuid);
     }
 
     /** Drop all active freezes silently, e.g. on server shutdown. */
+    public void cancelAll(final MinecraftServer server) {
+        for (final FreezeState state : active.values()) releaseHeldChunk(server, state);
+        active.clear();
+    }
+
+    /** @deprecated use {@link #cancelAll(MinecraftServer)} so held chunks can be released. */
+    @Deprecated
     public void cancelAll() {
         active.clear();
+    }
+
+    private static void releaseHeldChunk(final MinecraftServer server, final FreezeState state) {
+        if (state.heldChunk == null || state.heldChunkDimension == null) return;
+        final ServerLevel level = server.getLevel(state.heldChunkDimension);
+        if (level != null) {
+            try {
+                level.setChunkForced(state.heldChunk.x, state.heldChunk.z, false);
+            } catch (final Throwable t) {
+                SableProtectMod.LOGGER.warn("[sable-protect] Failed to release held chunk {} in {}",
+                        state.heldChunk, state.heldChunkDimension.location());
+            }
+        }
     }
 
     private static void notifyExpired(final MinecraftServer server, final FreezeState state) {

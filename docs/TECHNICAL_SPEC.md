@@ -56,7 +56,8 @@ dev.aerodev.sableprotect/
 ├── config/
 │   └── SableProtectConfig.java     # ModConfigSpec (minimum mass, freeze duration, border inset)
 ├── freeze/
-│   └── FreezeManager.java          # Tracks active /sp fetch freezes; ticks expiry; cleans up on remove
+│   ├── FreezeManager.java          # Tracks active /sp fetch freezes; ticks expiry; cleans up on remove; can hold a forced chunk for the freeze's lifetime (Phase 11)
+│   └── PendingFetchManager.java    # Queue of /sp fetch requests against unloaded sub-levels; force-loads plot chunks and times out on no-show (Phase 11)
 ├── lifecycle/
 │   ├── ClaimObserver.java          # SubLevelObserver for add/remove tracking
 │   └── SplitInheritanceQueue.java  # Bridges Sable's SplitListener to onSubLevelAdded
@@ -734,3 +735,33 @@ This means an existing OP-only deployment without LuckPerms node configuration k
 - Capture happens on the lifecycle hooks rather than per-tick; an unloaded ship doesn't move, so the snapshot is correct until the next load. If the server crashes between load and unload, the cache reverts to the previous snapshot until the ship reloads.
 - Coordinates are floored to integers for display; the exact double precision isn't useful in chat. Click-to-copy uses the same floored values.
 - Pre-Phase-10 claims with no cached position still display correctly — the `Location` line is simply omitted when both `subLevel` and `getLastKnownPosition()` are null.
+
+---
+
+### Phase 11: Fetch Unloaded Sub-Levels
+**Goal:** `/sp fetch` works on a claimed sub-level whose chunks aren't currently loaded, as long as its cached last-known position is outside the world border.
+
+**Deliverables:**
+- `ClaimData.lastKnownPlotChunk` (`ChunkPos?`) and `lastKnownDimension` (`ResourceKey<Level>?`), serialized under `sableprotect:lastPlotChunk { cx, cz }` and `sableprotect:lastDim "namespace:path"`. *(implemented)*
+- Lifecycle hooks (`ClaimObserver`, `ClaimCommand`, `ClaimUuidCommand`, split inheritance) populate both new fields alongside `lastKnownPosition`. *(implemented)*
+- `freeze/PendingFetchManager` — per-mod queue keyed by sub-level UUID. `register` records the entry; `consume(uuid)` retrieves and removes; `tick` enforces a 100-tick (5s) timeout, releasing the force-loaded chunk and notifying the requester on failure. *(implemented)*
+- `FreezeManager.freeze` overload accepting an optional `(ChunkPos, ResourceKey<Level>)` pair. The freeze owns the chunk-force for its full duration; expiry / cancellation releases it via `level.setChunkForced(false)`. *(implemented)*
+- `FetchCommand` branches:
+  - **Loaded path** (existing): teleport + freeze.
+  - **Unloaded path** (new): validate cached pos / plot chunk / dimension, verify outside-border, force-load the plot chunk via `level.setChunkForced(true)`, register a `PendingFetchManager.Entry`, message the user "Loading...". *(implemented)*
+- `ClaimObserver.onSubLevelAdded` consumes any pending fetch entry for the just-loaded sub-level and dispatches `FetchCommand.executePendingFetch`, which runs the teleport + freeze with the chunk-hold attached. *(implemented)*
+- `SableProtectMod` ticks `pendingFetchManager` alongside `freezeManager` and calls `cancelAll(server)` on stop to release any held chunks. *(implemented)*
+
+**Implementation notes:**
+- Sable stores sub-level data in a separate "plot grid" — the chunk that loads the sub-level isn't the chunk at its world position but a fixed plot-grid chunk recorded at allocation time. We capture it via `subLevel.getPlot().getCenterChunk()`.
+- The 5-second timeout protects against pathological cases (corrupted plot chunk, dimension unloaded, etc.) — without it a misconfigured fetch could hold a chunk forced indefinitely.
+- The freeze takes ownership of the force-load on success: the chunk stays loaded for the 60s freeze, ensuring the player can board even if no other player is nearby. After the freeze expires, the chunk is released and the sub-level can re-unload normally if no players are around.
+- The `executePendingFetch` entry point uses the live orientation post-load (we don't cache orientation; it's already preserved by Sable's serialization).
+- A claim with no cached metadata (pre-Phase-11 or never observed) reports `unloaded_unavailable` rather than triggering an inert force-load.
+
+**Verification:**
+1. Claim a ship, fly it outside the world border, walk away until it unloads — check `/sp info` shows the cached last-known position and `[unloaded]` annotation.
+2. Run `/sp fetch <name>` from the same player → "Loading 'X' to fetch..." → within a couple of seconds, "Fetched 'X' to ...; frozen for 60s" → the ship is loaded at the destination and the player can board.
+3. After the 60s freeze expires, walk far away again — the ship can unload normally.
+4. Run `/sp fetch` against a ship whose cached position is *inside* the border → "already inside the world border" rejection.
+5. Edge case: pre-Phase-11 claim that's never been observed loaded → `unloaded_unavailable` message.

@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.command;
 
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.freeze.FreezeManager;
+import dev.aerodev.sableprotect.freeze.PendingFetchManager;
 import net.minecraft.commands.Commands;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
@@ -11,7 +12,8 @@ public final class SpCommand {
 
     public static void register(final RegisterCommandsEvent event,
                                 final ClaimRegistry registry,
-                                final FreezeManager freezeManager) {
+                                final FreezeManager freezeManager,
+                                final PendingFetchManager pendingFetchManager) {
         event.getDispatcher().register(
                 Commands.literal("sp")
                         .then(ClaimCommand.register(registry))
@@ -19,7 +21,7 @@ public final class SpCommand {
                         .then(InfoCommand.register(registry))
                         .then(EditCommand.register(registry))
                         .then(MyClaimsCommand.register(registry))
-                        .then(FetchCommand.register(registry, freezeManager))
+                        .then(FetchCommand.register(registry, freezeManager, pendingFetchManager))
                         .then(StealCommand.register(registry))
                         .then(DebugCommand.register())
                         .then(BypassCommand.register())
