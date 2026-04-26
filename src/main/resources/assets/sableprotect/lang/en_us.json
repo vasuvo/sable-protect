@@ -57,5 +57,9 @@
   "sableprotect.steal.not_in_nml": "'%s' is not currently inside No Man's Land.",
   "sableprotect.steal.not_on_board": "You must be on board '%s' to steal it.",
   "sableprotect.steal.crew_present": "Cannot steal — %s (owner or member) is still nearby.",
-  "sableprotect.steal.notification": "%s has stolen your sub-level '%s' in No Man's Land."
+  "sableprotect.steal.notification": "%s has stolen your sub-level '%s' in No Man's Land.",
+  "sableprotect.steal.hover_ready": "Click to steal — you are on board and the crew is absent.",
+  "sableprotect.steal.hover_not_on_board": "Disabled: you must be on board the sub-level to steal it.",
+  "sableprotect.steal.hover_crew_present": "Disabled: %s is within %s blocks of the sub-level.",
+  "sableprotect.steal.hover_unloaded": "Disabled: this sub-level is not currently loaded; you can't be on board."
 }

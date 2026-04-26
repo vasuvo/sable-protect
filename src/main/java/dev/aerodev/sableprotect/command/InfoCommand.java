@@ -166,15 +166,11 @@ public final class InfoCommand {
             header = header.append(Component.literal("  ")).append(formatGroundButton(player, subLevel, data, name));
         }
 
-        // Steal button — visible to non-owners viewing a loaded ship currently in No Man's Land.
-        // Final eligibility (on board, crew absent) is enforced by the command itself.
+        // Steal button — visible to non-owners viewing a ship currently in No Man's Land.
+        // Lit when the viewer is on board AND the crew is absent; greyed (with reason on
+        // hover) otherwise. Command-side checks enforce both conditions at execution time.
         if (!isOwner && inNoMansLand) {
-            header = header
-                    .append(Component.literal("  "))
-                    .append(makeButton("[Steal]",
-                            "Click to steal — requires being on board with the crew absent",
-                            ClickEvent.Action.SUGGEST_COMMAND,
-                            "/sp steal " + name));
+            header = header.append(Component.literal("  ")).append(formatStealButton(player, subLevel, data, name));
         }
         player.displayClientMessage(header, false);
 
@@ -393,6 +389,64 @@ public final class InfoCommand {
                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
                         Lang.tr("sableprotect.ground.hover_ready")
                                 .append(Component.literal(warning).withStyle(ChatFormatting.GRAY)))));
+    }
+
+    /**
+     * Builds the {@code [Steal]} button. Lit if the viewer is currently on board the
+     * sub-level <em>and</em> no other crew member is within the absence radius. Greyed-out
+     * with an explanatory hover otherwise. Command-side checks repeat both conditions at
+     * execution time.
+     */
+    private static MutableComponent formatStealButton(final ServerPlayer viewer,
+                                                      final @Nullable ServerSubLevel subLevel,
+                                                      final ClaimData data, final String name) {
+        // For unloaded ships the viewer cannot possibly be on board, so it's always greyed.
+        if (subLevel == null) {
+            return Component.literal("[Steal]").withStyle(style -> style
+                    .withColor(ChatFormatting.DARK_GRAY)
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            Lang.tr("sableprotect.steal.hover_unloaded"))));
+        }
+
+        // On-board check via Sable's tracking helper — same source of truth used by the command.
+        final dev.ryanhcode.sable.sublevel.SubLevel ridingOrTracking =
+                dev.ryanhcode.sable.Sable.HELPER.getTrackingOrVehicleSubLevel(viewer);
+        final boolean onBoard = ridingOrTracking != null
+                && ridingOrTracking.getUniqueId().equals(subLevel.getUniqueId());
+
+        if (!onBoard) {
+            return Component.literal("[Steal]").withStyle(style -> style
+                    .withColor(ChatFormatting.DARK_GRAY)
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            Lang.tr("sableprotect.steal.hover_not_on_board"))));
+        }
+
+        // Crew-absence check (excludes the viewer; matches StealCommand semantics).
+        final var pos = subLevel.logicalPose().position();
+        final int radius = SableProtectConfig.ABSENCE_RADIUS.get();
+        final java.util.UUID blocker = CrewPresence.findCrewWithinRadius(
+                viewer.getServer(), data,
+                new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()),
+                subLevel.getLevel().dimension(),
+                (long) radius * radius,
+                viewer.getUUID());
+
+        if (blocker != null) {
+            final ServerPlayer blockerPlayer = viewer.getServer().getPlayerList().getPlayer(blocker);
+            final String blockerName = blockerPlayer != null
+                    ? blockerPlayer.getGameProfile().getName()
+                    : blocker.toString().substring(0, 8);
+            return Component.literal("[Steal]").withStyle(style -> style
+                    .withColor(ChatFormatting.DARK_GRAY)
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            Lang.tr("sableprotect.steal.hover_crew_present", blockerName, radius))));
+        }
+
+        return Component.literal("[Steal]").withStyle(style -> style
+                .withColor(ChatFormatting.AQUA)
+                .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/sp steal " + name))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                        Lang.tr("sableprotect.steal.hover_ready"))));
     }
 
     /**
