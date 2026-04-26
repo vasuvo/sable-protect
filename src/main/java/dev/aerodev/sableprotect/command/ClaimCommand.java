@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.command;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.aerodev.sableprotect.audit.AuditLog;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
@@ -67,6 +68,8 @@ public final class ClaimCommand {
         data.setLastKnownDimension(serverSubLevel.getLevel().dimension());
         registry.putClaim(serverSubLevel.getUniqueId(), data);
         ClaimData.write(serverSubLevel, data);
+
+        AuditLog.logCreate(player.getServer(), name, serverSubLevel.getUniqueId(), player, "command");
 
         player.displayClientMessage(
                 Lang.tr("sableprotect.claim.success", name), false);

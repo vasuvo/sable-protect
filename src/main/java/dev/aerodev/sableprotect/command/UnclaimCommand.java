@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.command;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.aerodev.sableprotect.audit.AuditLog;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimRole;
@@ -85,6 +86,8 @@ public final class UnclaimCommand {
             ClaimData.clear(subLevel);
         }
         registry.removeClaim(subLevelId);
+
+        AuditLog.logDelete(player.getServer(), name, subLevelId, player, "unclaim");
 
         player.displayClientMessage(
                 Lang.tr("sableprotect.unclaim.success", name), false);

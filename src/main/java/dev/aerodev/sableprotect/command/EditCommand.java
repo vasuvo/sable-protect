@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
+import dev.aerodev.sableprotect.audit.AuditLog;
 import dev.aerodev.sableprotect.claim.ClaimRole;
 import dev.aerodev.sableprotect.permissions.Permissions;
 import dev.aerodev.sableprotect.util.Lang;
@@ -159,10 +160,14 @@ public final class EditCommand {
         final ResolvedClaim resolved = resolve(player, name, registry);
         if (resolved == null) return 0;
 
+        final java.util.UUID previousOwner = resolved.data.getOwner();
         resolved.data.setOwner(newOwner.getUUID());
         // Remove new owner from members if they were a member
         resolved.data.getMembers().remove(newOwner.getUUID());
         persist(registry, resolved);
+
+        AuditLog.logTransfer(player.getServer(), name, resolved.subLevelId,
+                previousOwner, newOwner.getUUID(), "changeowner");
 
         player.displayClientMessage(
                 Lang.tr("sableprotect.edit.owner_changed", name,

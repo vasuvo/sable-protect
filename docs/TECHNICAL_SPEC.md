@@ -70,6 +70,8 @@ dev.aerodev.sableprotect/
 │       ├── RopeBreakPacketMixin.java
 │       ├── SteeringWheelPacketMixin.java
 │       └── ThrottleLeverSignalPacketMixin.java
+├── audit/
+│   └── AuditLog.java               # Append-only plain-text log of claim lifecycle events (Phase 15)
 ├── permissions/
 │   ├── Permissions.java            # Public permission gate; LP-aware with vanilla fallback (Phase 9)
 │   └── LuckPermsBridge.java        # Direct LP API — only loaded when LP is installed (Phase 9)
@@ -794,3 +796,26 @@ This means an existing OP-only deployment without LuckPerms node configuration k
 3. With all crew far away (or offline), run `/sp ground` → ship teleports straight down, snaps upright, freezes for 60s.
 4. Walk far enough away to unload the ship, then run `/sp ground <name>` → `unloaded_loading` → load → ground succeeds.
 5. Info window `[Ground]` button: greyed with hover text when crew is nearby, cyan + clickable when not.
+
+---
+
+### Phase 15: Audit Log
+**Goal:** Append-only plain-text log of claim lifecycle events for admin/diagnostic purposes.
+
+**Deliverables:**
+- `audit/AuditLog.java` — opens `<server-root>/logs/sableprotect-audit.log` in append mode on `ServerStartedEvent`, closes on `ServerStoppingEvent`. Methods: `logCreate(server, name, uuid, actor, context)`, `logTransfer(server, name, uuid, fromUuid, toUuid, context)`, `logDelete(server, name, uuid, actor, context)`. *(implemented)*
+- Hooks into command paths after successful state changes:
+  - `ClaimCommand` → `CREATE context=command`
+  - `ClaimUuidCommand` → `CREATE context=claimuuid`
+  - `EditCommand.executeChangeOwner` → `TRANSFER context=changeowner`
+  - `StealCommand.executeConfirmed` → `TRANSFER context=steal`
+  - `UnclaimCommand.executeConfirmed` → `DELETE context=unclaim`
+  - `ClaimObserver.onSubLevelRemoved(REMOVED)` → `DELETE context=destroyed`, `actor=<system>`
+  - `ClaimObserver.applyInheritance` → `CREATE context=splitinheritance`, `actor=<system>` *(implemented)*
+
+**Implementation notes:**
+- Plain text instead of JSON Lines so the log is grep-friendly and matches `latest.log` conventions.
+- Single growing file, no rotation. Admin can compress/archive manually if it grows large.
+- Player names are resolved via `server.getPlayerList().getPlayer(uuid)` first, then `server.getProfileCache().get(uuid)`; falls back to bare UUID if neither is available (e.g., player has never logged in but is referenced as a claim member somehow).
+- Failed commands are not logged. Only state changes that actually persist (in `ClaimRegistry` / `ClaimStorage`) generate audit entries.
+- Sub-level destruction logs as `context=destroyed` regardless of whether it was disassembly or merge — Sable's `SubLevelRemovalReason.REMOVED` doesn't distinguish, and we don't always have a player context.

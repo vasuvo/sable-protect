@@ -132,6 +132,30 @@ On success, ownership transfers to the issuing player, the member list is wiped,
 
 ---
 
+## Audit log
+
+A plain-text append-only log of claim lifecycle events is written to `<server-root>/logs/sableprotect-audit.log`. One event per line, ISO-8601 UTC timestamp at the start. Events are logged only when the underlying state change has been persisted (no logging for failed commands).
+
+**Logged events:**
+- `CREATE` — `/sp claim`, `/sp claimuuid`, split-inheritance fragment.
+- `TRANSFER` — `/sp edit changeowner`, `/sp steal`.
+- `DELETE` — `/sp unclaim`, sub-level genuinely destroyed (Physics Assembler disassembly, merge consumption).
+
+**Not logged:** rename, member add/remove, toggle protection, info views, failed commands.
+
+**Example:**
+```
+2026-04-26T08:30:15Z CREATE     name="MyShip"  uuid=abc12345-...  actor=Vasuvo(uuid)  context=command
+2026-04-26T08:31:42Z TRANSFER   name="MyShip"  uuid=abc12345-...  from=Vasuvo(uuid) to=Bob(uuid)  context=changeowner
+2026-04-26T09:02:18Z TRANSFER   name="MyShip"  uuid=abc12345-...  from=Bob(uuid) to=Carl(uuid)    context=steal
+2026-04-26T10:15:03Z DELETE     name="MyShip"  uuid=abc12345-...  actor=Carl(uuid)  context=unclaim
+2026-04-26T11:00:55Z DELETE     name="OldShip" uuid=def...        actor=<system>    context=destroyed
+```
+
+The log is single-file (no rotation). Player names are resolved from online players first, then from the server's profile cache; if neither is available, only the UUID is recorded. Automatic events (split inheritance, sub-level destruction) use `<system>` for the actor since no player context is available at the lifecycle hook.
+
+---
+
 ## Persistence
 
 All claims are stored server-side in `<world>/data/sableprotect_claims.dat`, independent of any individual sub-level's chunk-load state. This means:

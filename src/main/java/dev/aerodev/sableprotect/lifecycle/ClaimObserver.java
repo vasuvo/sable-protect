@@ -1,6 +1,7 @@
 package dev.aerodev.sableprotect.lifecycle;
 
 import dev.aerodev.sableprotect.SableProtectMod;
+import dev.aerodev.sableprotect.audit.AuditLog;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.command.FetchCommand;
@@ -107,6 +108,12 @@ public class ClaimObserver implements SubLevelObserver {
         // /sp info, and /sp edit work for unloaded claims. Only REMOVED — the sub-level was
         // genuinely destroyed (disassembled, merged, etc.) — should drop the claim.
         if (reason == SubLevelRemovalReason.REMOVED) {
+            // Audit before removeClaim wipes the registry's name/uuid mapping.
+            final ClaimData claim = registry.getClaim(subLevel.getUniqueId());
+            if (claim != null && subLevel instanceof ServerSubLevel ssl) {
+                AuditLog.logDelete(ssl.getLevel().getServer(),
+                        claim.getName(), subLevel.getUniqueId(), null, "destroyed");
+            }
             registry.removeClaim(subLevel.getUniqueId());
         } else if (reason == SubLevelRemovalReason.UNLOADED
                 && subLevel instanceof ServerSubLevel serverSubLevel) {
@@ -174,6 +181,9 @@ public class ClaimObserver implements SubLevelObserver {
         inherited.setLastKnownDimension(fragment.getLevel().dimension());
         registry.putClaim(fragment.getUniqueId(), inherited);
         ClaimData.write(fragment, inherited);
+
+        AuditLog.logCreate(fragment.getLevel().getServer(),
+                newName, fragment.getUniqueId(), null, "splitinheritance");
 
         SableProtectMod.LOGGER.info(
                 "[sable-protect] Inherited claim '{}' from '{}' onto fragment {} (mass {})",

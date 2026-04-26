@@ -1,6 +1,7 @@
 package dev.aerodev.sableprotect;
 
 import com.mojang.logging.LogUtils;
+import dev.aerodev.sableprotect.audit.AuditLog;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimStorage;
@@ -109,6 +110,8 @@ public class SableProtectMod {
         claimRegistry.attach(storage);
         LOGGER.info("[sable-protect] Claim storage attached ({} claims loaded)",
                 storage.entries().size());
+
+        AuditLog.open(event.getServer());
     }
 
     @SubscribeEvent
@@ -119,5 +122,6 @@ public class SableProtectMod {
         pendingFetchManager.cancelAll(event.getServer());
         claimRegistry.detach();
         SplitInheritanceQueue.clear();
+        AuditLog.close();
     }
 }

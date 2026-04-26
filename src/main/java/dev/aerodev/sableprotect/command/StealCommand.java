@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.command;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.aerodev.sableprotect.audit.AuditLog;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
@@ -78,12 +79,16 @@ public final class StealCommand {
         final Set<UUID> notify = new HashSet<>();
         notify.add(target.data.getOwner());
         notify.addAll(target.data.getMembers());
+        final UUID previousOwner = target.data.getOwner();
 
         // Transfer ownership and clear members; toggles + name are preserved.
         target.data.setOwner(player.getUUID());
         target.data.getMembers().clear();
         registry.touchClaim(target.subLevel.getUniqueId());
         ClaimData.write(target.subLevel, target.data);
+
+        AuditLog.logTransfer(player.getServer(), name, target.subLevel.getUniqueId(),
+                previousOwner, player.getUUID(), "steal");
 
         // Notify previous owner + members in red. Skips offline players silently.
         final Component warning = Lang.tr(

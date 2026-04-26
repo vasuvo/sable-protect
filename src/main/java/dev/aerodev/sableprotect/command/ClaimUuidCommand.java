@@ -2,6 +2,7 @@ package dev.aerodev.sableprotect.command;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import dev.aerodev.sableprotect.audit.AuditLog;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.permissions.Permissions;
@@ -125,6 +126,8 @@ public final class ClaimUuidCommand {
         data.setLastKnownDimension(subLevel.getLevel().dimension());
         registry.putClaim(subLevel.getUniqueId(), data);
         ClaimData.write(subLevel, data);
+
+        AuditLog.logCreate(sender.getServer(), name, subLevel.getUniqueId(), sender, "claimuuid");
 
         sender.displayClientMessage(
                 Lang.tr("sableprotect.claimuuid.success", name, ownerDisplay), false);
