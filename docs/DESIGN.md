@@ -85,6 +85,13 @@ Members  [Add Member]:
 
 Clickable buttons pre-type or auto-submit the corresponding `/sp` command. Non-owners see the protection toggles as static text rather than buttons. Members see Fetch but not the editing or membership buttons.
 
+### `/sp ground <name>`
+Emergency landing. Teleports the named sub-level **straight down** to the surface at its current XZ, snaps the orientation to upright, and freezes physics for the configured duration. The XZ coordinates are unchanged — this is a vertical-only drop. The drop point is the world's `MOTION_BLOCKING_NO_LEAVES` heightmap plus a generous `+20` block buffer to avoid collision artifacts on awkward hulls.
+
+Available to the owner and all members. Requires the entire crew — *including the issuer and anyone currently on board* — to be outside `absenceRadius` blocks (default 100) of the ship; the command is intended as a backup option for when you literally can't reach your ship and is deliberately less polished than `/sp fetch`. Works on unloaded sub-levels using the same plot-chunk force-load mechanism as fetch.
+
+The info window's `[Ground]` button reflects eligibility live: lit (cyan, clickable) when no crew is within range; greyed-out (with a hover explaining the reason and a stability warning) otherwise.
+
 ### `/sp fetch <name>`
 If the named sub-level is outside the vanilla world border, teleports it to the nearest point just inside the border (approximately 50 blocks inward) and above ground at that location. Physics are then **completely frozen** for 1 minute, giving the owner time to board and shut off engines before the freeze expires. Available to the owner and all members.
 
@@ -118,7 +125,7 @@ Prompts for confirmation. The owner must then run `/sp unclaim <name> CONFIRM` t
 Steals ownership of a claimed sub-level inside No Man's Land. Two-step confirmation: `/sp steal <name>` previews the action, `/sp steal <name> CONFIRM` executes. All of the following must be true:
 - The sub-level must currently be inside the No Man's Land rectangle.
 - The player must be physically on board (riding or standing on the sub-level).
-- No online owner or member may be within `stealAbsenceRadius` blocks (default 100) of the ship's center. Offline crew members and crew on a different dimension count as absent.
+- No online owner or member may be within `absenceRadius` blocks (default 100) of the ship's center. Offline crew members and crew on a different dimension count as absent.
 - The player isn't already the owner.
 
 On success, ownership transfers to the issuing player, the member list is wiped, and the name + protection toggles are preserved. The previous owner and any prior members receive a red chat warning naming the player who took their ship; offline targets are not notified.

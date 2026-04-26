@@ -124,7 +124,7 @@ public final class FetchCommand {
         pipeline.resetVelocity(subLevel);
         pipeline.teleport(subLevel, destination, orientation);
 
-        final int durationSeconds = SableProtectConfig.FETCH_FREEZE_DURATION_SECONDS.get();
+        final int durationSeconds = SableProtectConfig.FREEZE_DURATION_SECONDS.get();
         final long durationTicks = durationSeconds * 20L;
         final long currentTick = level.getServer().getTickCount();
 
@@ -181,14 +181,15 @@ public final class FetchCommand {
             return 0;
         }
 
-        final int durationSeconds = SableProtectConfig.FETCH_FREEZE_DURATION_SECONDS.get();
+        final int durationSeconds = SableProtectConfig.FREEZE_DURATION_SECONDS.get();
         final long durationTicks = durationSeconds * 20L;
         final long currentTick = server.getTickCount();
         final long deadline = currentTick + PendingFetchManager.DEFAULT_TIMEOUT_TICKS;
 
         pendingFetchManager.register(new PendingFetchManager.Entry(
-                subLevelId, dimension, plotChunk, destination, (int) durationTicks,
-                player.getUUID(), name, deadline));
+                subLevelId, dimension, plotChunk, destination, /* orientation override */ null,
+                (int) durationTicks, player.getUUID(), name,
+                "sableprotect.fetch.success", deadline));
 
         player.displayClientMessage(Lang.tr("sableprotect.fetch.unloaded_loading", name), false);
         return 1;
@@ -214,8 +215,10 @@ public final class FetchCommand {
         }
 
         final PhysicsPipeline pipeline = container.physicsSystem().getPipeline();
-        // Use the live orientation — we don't cache it; the ship's orientation persisted to disk.
-        final Quaterniondc orientation = new Quaterniond(subLevel.logicalPose().orientation());
+        // Use override if provided (e.g. /sp ground snaps to upright); else live orientation.
+        final Quaterniondc orientation = entry.orientationOverride() != null
+                ? new Quaterniond(entry.orientationOverride())
+                : new Quaterniond(subLevel.logicalPose().orientation());
         pipeline.resetVelocity(subLevel);
         pipeline.teleport(subLevel, entry.destination(), orientation);
 
@@ -233,7 +236,7 @@ public final class FetchCommand {
         // Success — notify requester. The freeze owns the held chunk now and will release it
         // when it expires.
         final int durationSeconds = (int) (entry.durationTicks() / 20L);
-        notifyRequester(level.getServer(), entry, "sableprotect.fetch.success",
+        notifyRequester(level.getServer(), entry, entry.successLangKey(),
                 new Object[] {
                         entry.displayName(),
                         Component.literal((int) entry.destination().x + ", " + (int) entry.destination().y + ", " + (int) entry.destination().z)

@@ -5,6 +5,8 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.claim.ClaimRole;
+import dev.aerodev.sableprotect.config.SableProtectConfig;
+import dev.aerodev.sableprotect.util.CrewPresence;
 import dev.aerodev.sableprotect.util.Lang;
 import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.aerodev.sableprotect.util.SubLevelLookup;
@@ -145,6 +147,12 @@ public final class InfoCommand {
                             "Click to fetch this sub-level back inside the world border",
                             ClickEvent.Action.RUN_COMMAND,
                             "/sp fetch " + name));
+        }
+
+        // Ground button — visible to crew. Lit if no crew is within the absence radius;
+        // greyed out (with reason on hover) otherwise.
+        if (isMemberOrOwner) {
+            header = header.append(Component.literal("  ")).append(formatGroundButton(player, subLevel, data, name));
         }
 
         // Steal button — visible to non-owners viewing a loaded ship currently in No Man's Land.
@@ -301,6 +309,61 @@ public final class InfoCommand {
         final var pos = subLevel.logicalPose().position();
         return pos.x() < border.getMinX() || pos.x() > border.getMaxX()
                 || pos.z() < border.getMinZ() || pos.z() > border.getMaxZ();
+    }
+
+    /**
+     * Builds the {@code [Ground]} button. Lit if no crew member is within the absence
+     * radius of the ship's last-known position. Greyed-out otherwise, with a hover
+     * reason. The instability warning is appended to the hover for both states because
+     * it applies to the action either way.
+     */
+    private static MutableComponent formatGroundButton(final ServerPlayer viewer,
+                                                       final @Nullable ServerSubLevel subLevel,
+                                                       final ClaimData data, final String name) {
+        // Resolve the position + dimension to use for the absence check.
+        final net.minecraft.world.phys.Vec3 pos;
+        final net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dim;
+        if (subLevel != null) {
+            final var live = subLevel.logicalPose().position();
+            pos = new net.minecraft.world.phys.Vec3(live.x(), live.y(), live.z());
+            dim = subLevel.getLevel().dimension();
+        } else {
+            pos = data.getLastKnownPosition();
+            dim = data.getLastKnownDimension();
+        }
+
+        if (pos == null || dim == null) {
+            // No position to test against — render greyed with explanatory hover.
+            return Component.literal("[Ground]").withStyle(style -> style
+                    .withColor(ChatFormatting.DARK_GRAY)
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            Lang.tr("sableprotect.ground.hover_unavailable"))));
+        }
+
+        final int radius = SableProtectConfig.ABSENCE_RADIUS.get();
+        final java.util.UUID blocker = CrewPresence.findCrewWithinRadius(
+                viewer.getServer(), data, pos, dim, (long) radius * radius, null);
+
+        final String warning = "\nNote: this teleport may be unstable; only use as a backup when you can't reach your ship.";
+
+        if (blocker != null) {
+            final ServerPlayer blockerPlayer = viewer.getServer().getPlayerList().getPlayer(blocker);
+            final String blockerName = blockerPlayer != null
+                    ? blockerPlayer.getGameProfile().getName()
+                    : blocker.toString().substring(0, 8);
+            return Component.literal("[Ground]").withStyle(style -> style
+                    .withColor(ChatFormatting.DARK_GRAY)
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            Lang.tr("sableprotect.ground.hover_blocked", blockerName, radius)
+                                    .append(Component.literal(warning).withStyle(ChatFormatting.GRAY)))));
+        }
+
+        return Component.literal("[Ground]").withStyle(style -> style
+                .withColor(ChatFormatting.AQUA)
+                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/sp ground " + name))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                        Lang.tr("sableprotect.ground.hover_ready")
+                                .append(Component.literal(warning).withStyle(ChatFormatting.GRAY)))));
     }
 
     /**

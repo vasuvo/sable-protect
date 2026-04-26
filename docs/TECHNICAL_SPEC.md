@@ -48,6 +48,7 @@ dev.aerodev.sableprotect/
 │   ├── EditCommand.java            # /sp edit (toggles, rename, changeowner, members)
 │   ├── UnclaimCommand.java         # /sp unclaim + confirmation
 │   ├── FetchCommand.java           # /sp fetch + physics freeze
+│   ├── GroundCommand.java          # /sp ground (Phase 12) — vertical drop + freeze
 │   ├── MyClaimsCommand.java        # /sp myclaims
 │   ├── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
 │   ├── BypassCommand.java          # /sp bypass (OP-only, toggle admin claim-protection bypass)
@@ -77,7 +78,8 @@ dev.aerodev.sableprotect/
     ├── DebugHelper.java            # Per-player debug toggle state
     ├── BypassHelper.java           # Per-player admin-bypass opt-in state (session-only)
     ├── NoMansLand.java             # Config-backed rectangle test (Phase 6)
-    └── Lang.java                   # Server-side string lookup (Phase 8) — bundles en_us.json
+    ├── Lang.java                   # Server-side string lookup (Phase 8) — bundles en_us.json
+    └── CrewPresence.java           # Shared crew-within-radius check (Phase 12) — used by /sp steal and /sp ground
 ```
 
 ---
@@ -306,6 +308,7 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 ├── myclaims
 ├── info [name: string]
 ├── fetch <name: string>
+├── ground <name: string>
 ├── edit <name: string>
 │   ├── blocks <protected|unprotected>
 │   ├── interactions <protected|unprotected>
@@ -477,7 +480,7 @@ Server-side config via NeoForge `ModConfigSpec` at `config/sableprotect-common.t
 minimumClaimMass = 4
 
 # Duration of the physics freeze after /sp fetch, in seconds
-fetchFreezeDurationSeconds = 60
+freezeDurationSeconds = 60
 
 # How far inside the world border to place a fetched sub-level, in blocks
 fetchBorderInset = 50
@@ -579,7 +582,7 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 - `/sp fetch <name>` — teleports out-of-bounds sub-level inside the world border *(implemented)*
 - Physics freeze system (FixedConstraint + tick-based expiry) *(implemented in `freeze/FreezeManager`)*
 - Freeze expiry notification to owner/members *(implemented; subscriber list snapshotted at freeze time)*
-- Config options (`minimumClaimMass`, `fetchFreezeDurationSeconds`, `fetchBorderInset`) *(implemented in `config/SableProtectConfig`)*
+- Config options (`minimumClaimMass`, `freezeDurationSeconds`, `fetchBorderInset`) *(implemented in `config/SableProtectConfig`)*
 - Info-window `[Locate]` / `[Fetch]` buttons for owners and members *(implemented)*
 
 **Implementation notes:**
@@ -629,7 +632,7 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 **Goal:** A configurable rectangular region in which all claim protections are suspended and ships can be stolen by anyone willing to board them after the crew is absent.
 
 **Deliverables:**
-- `noManLand` config block (`enabled`, `minX`/`maxX`/`minZ`/`maxZ`, `stealAbsenceRadius`) *(implemented in `SableProtectConfig`)*
+- `noManLand` config block (`enabled`, `minX`/`maxX`/`minZ`/`maxZ`); the absence-radius config used to live here as `stealAbsenceRadius` and was lifted to a top-level `absenceRadius` in Phase 12 *(implemented in `SableProtectConfig`)*
 - `util/NoMansLand.java` — single source of truth for the in-rectangle test, normalizing user-supplied corner order and short-circuiting when disabled *(implemented)*
 - `ProtectionHelper.getClaimContext` and `PacketProtection.resolveClaim` return null for in-NML claims, causing every event-based and mixin-based protection to no-op *(implemented)*
 - `InteractionProtectionHandler` entity-interact / attack-entity paths early-out on in-NML sub-levels (they read `ClaimData` directly, bypassing `getClaimContext`) *(implemented)*
@@ -765,3 +768,29 @@ This means an existing OP-only deployment without LuckPerms node configuration k
 3. After the 60s freeze expires, walk far away again — the ship can unload normally.
 4. Run `/sp fetch` against a ship whose cached position is *inside* the border → "already inside the world border" rejection.
 5. Edge case: pre-Phase-11 claim that's never been observed loaded → `unloaded_unavailable` message.
+
+---
+
+### Phase 12: Ground Command + Config Cleanup
+**Goal:** Add `/sp ground` as a backup landing option, generalize the absence-radius and freeze-duration config keys, and share the crew-presence check between commands.
+
+**Deliverables:**
+- `command/GroundCommand.java` — vertical-only teleport with snap-to-upright orientation, drops at `MOTION_BLOCKING_NO_LEAVES + 20` for collision tolerance, runs the standard freeze. Loaded path runs the teleport synchronously; unloaded path force-loads the plot chunk via `PendingFetchManager` and dispatches when the sub-level reappears. *(implemented)*
+- `util/CrewPresence.findCrewWithinRadius(server, claim, pos, dimension, radiusSqr, excluding)` — shared absence test. Steal passes the issuer UUID for `excluding`; ground passes null. *(implemented; `StealCommand` refactored to use it)*
+- `PendingFetchManager.Entry` extended with `@Nullable Quaterniondc orientationOverride` and `String successLangKey`. `FetchCommand.executePendingFetch` honors the override (falls back to live orientation when null) and uses the entry's lang key for the success message. *(implemented)*
+- Info-window `[Ground]` button — visible to crew; lit (cyan, clickable) when no crew is within range, greyed (dark grey, non-clickable) otherwise. Hover shows the reason and a stability warning either way. *(implemented)*
+- Config rename: `noManLand.stealAbsenceRadius` → top-level `absenceRadius`; `fetchFreezeDurationSeconds` → `freezeDurationSeconds`. *(implemented; this is a breaking change for existing user configs — they'll fall back to defaults on first read.)*
+
+**Implementation notes:**
+- The destination Y buffer is hardcoded at `+20` (`GroundCommand.GROUND_HEIGHT_BUFFER`) rather than configurable — the user can re-edit the value if they need it tighter, but this matches the "be generous, this is a backup" framing.
+- Snap-to-upright is achieved via `new Quaterniond()` (identity quaternion). The orientation is locked into the freeze for the full duration so the ship doesn't immediately tip over post-teleport.
+- The ground absence check does <em>not</em> exclude the issuer — even a crew member standing on the ship blocks ground. This is intentional per the design: `/sp ground` is a backup-only option for "I can't reach my ship", and a crew member who's nearby should be able to land it normally.
+- The `[Ground]` button in the info window evaluates eligibility at info-window-render time. Since the info window is re-printed after every `/sp edit` mutation, the lit/greyed state stays roughly current.
+- For unloaded sub-levels, the absence check uses the cached `lastKnownPosition` and `lastKnownDimension`. Crew who walked into the area while the ship was unloaded would still register correctly because we check against their <em>current</em> player positions, not cached values.
+
+**Verification:**
+1. Claim a ship, fly it up high, land via `/sp ground` while standing on board with no other crew nearby → should succeed (only-crew-member-present blocks the issuer? No — issuer counts. Re-test after walking 100+ blocks away.)
+2. With another crew member standing nearby, attempt `/sp ground` → fails with `crew_present` message naming the blocker.
+3. With all crew far away (or offline), run `/sp ground` → ship teleports straight down, snaps upright, freezes for 60s.
+4. Walk far enough away to unload the ship, then run `/sp ground <name>` → `unloaded_loading` → load → ground succeeds.
+5. Info window `[Ground]` button: greyed with hover text when crew is nearby, cyan + clickable when not.

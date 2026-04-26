@@ -5,6 +5,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import dev.aerodev.sableprotect.claim.ClaimData;
 import dev.aerodev.sableprotect.claim.ClaimRegistry;
 import dev.aerodev.sableprotect.config.SableProtectConfig;
+import dev.aerodev.sableprotect.util.CrewPresence;
 import dev.aerodev.sableprotect.util.Lang;
 import dev.aerodev.sableprotect.util.NoMansLand;
 import dev.ryanhcode.sable.Sable;
@@ -167,30 +168,18 @@ public final class StealCommand {
 
     /**
      * Returns the UUID of any online owner or member within the configured absence radius
-     * of the target sub-level's center. Returns null if the entire crew is absent (offline
-     * or far away).
+     * of the target sub-level's center, excluding the initiator. Returns null if the entire
+     * crew (sans initiator) is absent.
      */
     private static UUID findPresentOwnerOrMember(final ServerPlayer initiator, final ResolvedTarget target) {
-        final int radius = SableProtectConfig.STEAL_ABSENCE_RADIUS.get();
-        final long radiusSqr = (long) radius * radius;
-        final Vector3dc shipCenter = target.subLevel.logicalPose().position();
-
-        final Set<UUID> crew = new HashSet<>();
-        crew.add(target.data.getOwner());
-        crew.addAll(target.data.getMembers());
-
-        for (final UUID uuid : crew) {
-            if (uuid.equals(initiator.getUUID())) continue; // The initiator's own presence doesn't block them.
-            final ServerPlayer member = initiator.getServer().getPlayerList().getPlayer(uuid);
-            if (member == null) continue; // Offline → absent.
-            if (member.level() != target.subLevel.getLevel()) continue; // Different dimension → absent.
-            final double dx = member.getX() - shipCenter.x();
-            final double dy = member.getY() - shipCenter.y();
-            final double dz = member.getZ() - shipCenter.z();
-            if (dx * dx + dy * dy + dz * dz <= radiusSqr) {
-                return uuid;
-            }
-        }
-        return null;
+        final int radius = SableProtectConfig.ABSENCE_RADIUS.get();
+        final Vector3dc pos = target.subLevel.logicalPose().position();
+        return CrewPresence.findCrewWithinRadius(
+                initiator.getServer(),
+                target.data,
+                new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()),
+                target.subLevel.getLevel().dimension(),
+                (long) radius * radius,
+                initiator.getUUID());
     }
 }
