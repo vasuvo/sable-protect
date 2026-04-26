@@ -9,6 +9,7 @@ import dev.aerodev.sableprotect.config.SableProtectConfig;
 import dev.aerodev.sableprotect.util.CrewPresence;
 import dev.aerodev.sableprotect.util.Lang;
 import dev.aerodev.sableprotect.util.NoMansLand;
+import dev.aerodev.sableprotect.util.Players;
 import dev.aerodev.sableprotect.util.SubLevelLookup;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
@@ -493,10 +494,6 @@ public final class InfoCommand {
     }
 
     static String resolvePlayerName(final ServerPlayer viewer, final UUID uuid) {
-        final ServerPlayer target = viewer.getServer().getPlayerList().getPlayer(uuid);
-        if (target != null) {
-            return target.getGameProfile().getName();
-        }
-        return uuid.toString().substring(0, 8) + "...";
+        return Players.resolveDisplayName(viewer.getServer(), uuid);
     }
 }
