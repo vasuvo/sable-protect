@@ -62,6 +62,8 @@ public final class ClaimCommand {
 
         // Create claim — register first (canonical), then mirror to userDataTag.
         final ClaimData data = new ClaimData(player.getUUID(), name);
+        final var pos = serverSubLevel.logicalPose().position();
+        data.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
         registry.putClaim(serverSubLevel.getUniqueId(), data);
         ClaimData.write(serverSubLevel, data);
 

@@ -138,20 +138,13 @@ public final class InfoCommand {
                                             Lang.tr("sableprotect.info.nml_hover")))));
         }
 
-        if (isMemberOrOwner && loaded) {
+        if (isMemberOrOwner && loaded && isOutsideWorldBorder(subLevel)) {
             header = header
                     .append(Component.literal("  "))
-                    .append(makeButton("[Locate]", "Click to locate",
+                    .append(makeButton("[Fetch from Out of Bounds]",
+                            "Click to fetch this sub-level back inside the world border",
                             ClickEvent.Action.RUN_COMMAND,
-                            "/sp locate " + name));
-            if (isOutsideWorldBorder(subLevel)) {
-                header = header
-                        .append(Component.literal("  "))
-                        .append(makeButton("[Fetch from Out of Bounds]",
-                                "Click to fetch this sub-level back inside the world border",
-                                ClickEvent.Action.RUN_COMMAND,
-                                "/sp fetch " + name));
-            }
+                            "/sp fetch " + name));
         }
 
         // Steal button — visible to non-owners viewing a loaded ship currently in No Man's Land.
@@ -165,6 +158,13 @@ public final class InfoCommand {
                             "/sp steal " + name));
         }
         player.displayClientMessage(header, false);
+
+        // Location — live position when loaded, last-known cached position when unloaded.
+        // Visible to owners and members. Click-copy yields "X Y Z" for use in /tp etc.
+        if (isMemberOrOwner) {
+            final MutableComponent locationLine = formatLocation(subLevel, data);
+            if (locationLine != null) player.displayClientMessage(locationLine, false);
+        }
 
         // Protection flags — clickable toggles for owner, plain text for others
         player.displayClientMessage(formatFlag("Blocks", data.isBlocksProtected(), name, isOwner), false);
@@ -301,6 +301,49 @@ public final class InfoCommand {
         final var pos = subLevel.logicalPose().position();
         return pos.x() < border.getMinX() || pos.x() > border.getMaxX()
                 || pos.z() < border.getMinZ() || pos.z() > border.getMaxZ();
+    }
+
+    /**
+     * "Location: X, Y, Z" line. Live position when loaded, cached last-known position
+     * when unloaded; null if the position has never been observed (legacy claim from
+     * before Phase 10). Click-copies the coords as a space-separated triple.
+     */
+    private static @Nullable MutableComponent formatLocation(
+            final @Nullable ServerSubLevel subLevel, final ClaimData data) {
+        final double x;
+        final double y;
+        final double z;
+        final boolean live;
+        if (subLevel != null) {
+            final var pos = subLevel.logicalPose().position();
+            x = pos.x(); y = pos.y(); z = pos.z();
+            live = true;
+        } else {
+            final var cached = data.getLastKnownPosition();
+            if (cached == null) return null;
+            x = cached.x; y = cached.y; z = cached.z;
+            live = false;
+        }
+        final int xi = (int) Math.floor(x);
+        final int yi = (int) Math.floor(y);
+        final int zi = (int) Math.floor(z);
+        final String coords = xi + ", " + yi + ", " + zi;
+        final String clipboard = xi + " " + yi + " " + zi;
+        final String tooltip = live
+                ? "Click to copy coordinates"
+                : "Last-known coordinates (sub-level not currently loaded). Click to copy.";
+
+        final MutableComponent line = Component.literal("Location: ")
+                .withStyle(ChatFormatting.GRAY);
+        line.append(Component.literal(coords)
+                .withStyle(style -> style
+                        .withColor(live ? ChatFormatting.AQUA : ChatFormatting.GRAY)
+                        .withItalic(!live)
+                        .withClickEvent(new ClickEvent(
+                                ClickEvent.Action.COPY_TO_CLIPBOARD, clipboard))
+                        .withHoverEvent(new HoverEvent(
+                                HoverEvent.Action.SHOW_TEXT, Component.literal(tooltip)))));
+        return line;
     }
 
     static String resolvePlayerName(final ServerPlayer viewer, final UUID uuid) {

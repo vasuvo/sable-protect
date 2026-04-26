@@ -19,7 +19,6 @@ public final class SpCommand {
                         .then(InfoCommand.register(registry))
                         .then(EditCommand.register(registry))
                         .then(MyClaimsCommand.register(registry))
-                        .then(LocateCommand.register(registry))
                         .then(FetchCommand.register(registry, freezeManager))
                         .then(StealCommand.register(registry))
                         .then(DebugCommand.register())

@@ -120,6 +120,8 @@ public final class ClaimUuidCommand {
 
         // Override any existing claim — putClaim handles re-indexing/dirty automatically.
         final ClaimData data = new ClaimData(ownerUuid, name);
+        final var pos = subLevel.logicalPose().position();
+        data.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
         registry.putClaim(subLevel.getUniqueId(), data);
         ClaimData.write(subLevel, data);
 

@@ -47,7 +47,6 @@ dev.aerodev.sableprotect/
 │   ├── InfoCommand.java            # /sp info, builds chat component
 │   ├── EditCommand.java            # /sp edit (toggles, rename, changeowner, members)
 │   ├── UnclaimCommand.java         # /sp unclaim + confirmation
-│   ├── LocateCommand.java          # /sp locate
 │   ├── FetchCommand.java           # /sp fetch + physics freeze
 │   ├── MyClaimsCommand.java        # /sp myclaims
 │   ├── DebugCommand.java           # /sp debug (OP-only, toggle debug output)
@@ -305,7 +304,6 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 │   └── owneruuid <owner_uuid: string>              (raw UUID)
 ├── myclaims
 ├── info [name: string]
-├── locate <name: string>
 ├── fetch <name: string>
 ├── edit <name: string>
 │   ├── blocks <protected|unprotected>
@@ -718,3 +716,21 @@ This means an existing OP-only deployment without LuckPerms node configuration k
 - `LuckPermsBridge.query` swallows any throwable (LP not yet initialized, user not loaded, …) and returns `Tristate.UNDEFINED`, so a transient LP error degrades to vanilla-level behavior rather than denying everything.
 - Console / non-player command sources skip the LP check entirely and fall through to `source.hasPermission(level)` — LP nodes don't apply to non-players.
 - The existing `BypassHelper` per-player session toggle is unchanged. The eligibility check that was `player.hasPermissions(adminBypassPermissionLevel)` now goes through `Permissions.has(player, BYPASS_USE, adminBypassPermissionLevel)`.
+
+---
+
+### Phase 10: Inline Location, Last-Known Position
+**Goal:** Replace the `[Locate]` button + `/sp locate` command with an inline coordinate readout in the info window. Show coordinates even when the sub-level is unloaded.
+
+**Deliverables:**
+- `ClaimData.lastKnownPosition` (`Vec3?`) with NBT serialization under `sableprotect:lastPos { x, y, z }`. *(implemented)*
+- `ClaimObserver` snapshots the current pose into the cache on every `onSubLevelAdded` and on `onSubLevelRemoved` with `UNLOADED` reason. Split-fragment inheritance overwrites the inherited cache with the fragment's own pose. *(implemented)*
+- `ClaimCommand` and `ClaimUuidCommand` capture position at claim creation. *(implemented)*
+- `InfoCommand` renders a `Location: X, Y, Z` line below the title for owners and members. Loaded → live position in cyan; unloaded → cached position in italic grey. Click-copies a space-separated `X Y Z` triple suitable for `/tp`. *(implemented)*
+- `[Locate]` button removed from the info window; `/sp locate` command and supporting lang strings removed. *(implemented; `LocateCommand.java` deleted)*
+
+**Implementation notes:**
+- Position cache is part of `ClaimData` so it persists through both the `userDataTag` mirror and the canonical `ClaimStorage` SavedData — survives unload, dimension change, server restart.
+- Capture happens on the lifecycle hooks rather than per-tick; an unloaded ship doesn't move, so the snapshot is correct until the next load. If the server crashes between load and unload, the cache reverts to the previous snapshot until the ship reloads.
+- Coordinates are floored to integers for display; the exact double precision isn't useful in chat. Click-to-copy uses the same floored values.
+- Pre-Phase-10 claims with no cached position still display correctly — the `Location` line is simply omitted when both `subLevel` and `getLastKnownPosition()` are null.

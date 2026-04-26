@@ -57,7 +57,13 @@ public class ClaimObserver implements SubLevelObserver {
         //   * storage has a claim, tag doesn't  -> claim was edited while unloaded, sync to tag
         //   * both agree                        -> idempotent re-index
         registry.index(serverSubLevel);
-        if (registry.getClaim(id) != null) return;
+        final ClaimData existing = registry.getClaim(id);
+        if (existing != null) {
+            // Refresh the cached position to the current pose so unloaded-info readouts
+            // are accurate at least up to the most recent load.
+            cacheCurrentPosition(serverSubLevel, existing, id);
+            return;
+        }
 
         // No existing claim — check whether this sub-level is the new fragment of an
         // ongoing split (pushed by our SplitListener moments before allocation).
@@ -78,8 +84,22 @@ public class ClaimObserver implements SubLevelObserver {
         // genuinely destroyed (disassembled, merged, etc.) — should drop the claim.
         if (reason == SubLevelRemovalReason.REMOVED) {
             registry.removeClaim(subLevel.getUniqueId());
+        } else if (reason == SubLevelRemovalReason.UNLOADED
+                && subLevel instanceof ServerSubLevel serverSubLevel) {
+            // Snapshot the final pose so /sp info can show a correct location while the
+            // sub-level is unloaded.
+            final ClaimData data = registry.getClaim(subLevel.getUniqueId());
+            if (data != null) {
+                cacheCurrentPosition(serverSubLevel, data, subLevel.getUniqueId());
+            }
         }
         freezeManager.cancel(subLevel.getUniqueId());
+    }
+
+    private void cacheCurrentPosition(final ServerSubLevel subLevel, final ClaimData data, final UUID id) {
+        final var pos = subLevel.logicalPose().position();
+        data.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
+        registry.touchClaim(id);
     }
 
     @Override
@@ -120,6 +140,9 @@ public class ClaimObserver implements SubLevelObserver {
         final ClaimData inherited = parentClaim.copy();
         final String newName = registry.generateSuffixedName(parentClaim.getName());
         inherited.setName(newName);
+        // Fragment is at its own pose, not the parent's — overwrite the inherited cache.
+        final var pos = fragment.logicalPose().position();
+        inherited.setLastKnownPosition(new net.minecraft.world.phys.Vec3(pos.x(), pos.y(), pos.z()));
         registry.putClaim(fragment.getUniqueId(), inherited);
         ClaimData.write(fragment, inherited);
 

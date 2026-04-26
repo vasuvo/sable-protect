@@ -4,6 +4,7 @@ import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
@@ -21,6 +22,10 @@ public class ClaimData {
     private static final String BLOCKS_KEY = "blocks";
     private static final String INTERACTIONS_KEY = "interactions";
     private static final String INVENTORIES_KEY = "inventories";
+    private static final String LAST_POS_KEY = "lastPos";
+    private static final String LAST_POS_X = "x";
+    private static final String LAST_POS_Y = "y";
+    private static final String LAST_POS_Z = "z";
 
     private UUID owner;
     private String name;
@@ -28,6 +33,8 @@ public class ClaimData {
     private boolean blocksProtected;
     private boolean interactionsProtected;
     private boolean inventoriesProtected;
+    /** World-space position last seen for the sub-level. Null if never observed. */
+    private @Nullable Vec3 lastKnownPosition;
 
     public ClaimData(final UUID owner, final String name) {
         this.owner = owner;
@@ -103,6 +110,14 @@ public class ClaimData {
         return ClaimRole.DEFAULT;
     }
 
+    public @Nullable Vec3 getLastKnownPosition() {
+        return lastKnownPosition;
+    }
+
+    public void setLastKnownPosition(@Nullable final Vec3 position) {
+        this.lastKnownPosition = position;
+    }
+
     public CompoundTag serialize() {
         final CompoundTag root = new CompoundTag();
         root.putUUID(OWNER_KEY, owner);
@@ -122,6 +137,14 @@ public class ClaimData {
         flags.putBoolean(INVENTORIES_KEY, inventoriesProtected);
         root.put(FLAGS_KEY, flags);
 
+        if (lastKnownPosition != null) {
+            final CompoundTag pos = new CompoundTag();
+            pos.putDouble(LAST_POS_X, lastKnownPosition.x);
+            pos.putDouble(LAST_POS_Y, lastKnownPosition.y);
+            pos.putDouble(LAST_POS_Z, lastKnownPosition.z);
+            root.put(LAST_POS_KEY, pos);
+        }
+
         return root;
     }
 
@@ -140,7 +163,16 @@ public class ClaimData {
         final boolean interactionsProtected = !flags.contains(INTERACTIONS_KEY) || flags.getBoolean(INTERACTIONS_KEY);
         final boolean inventoriesProtected = !flags.contains(INVENTORIES_KEY) || flags.getBoolean(INVENTORIES_KEY);
 
-        return new ClaimData(owner, name, members, blocksProtected, interactionsProtected, inventoriesProtected);
+        final ClaimData data = new ClaimData(owner, name, members,
+                blocksProtected, interactionsProtected, inventoriesProtected);
+        if (root.contains(LAST_POS_KEY, Tag.TAG_COMPOUND)) {
+            final CompoundTag pos = root.getCompound(LAST_POS_KEY);
+            data.lastKnownPosition = new Vec3(
+                    pos.getDouble(LAST_POS_X),
+                    pos.getDouble(LAST_POS_Y),
+                    pos.getDouble(LAST_POS_Z));
+        }
+        return data;
     }
 
     public static @Nullable ClaimData read(final ServerSubLevel subLevel) {
@@ -169,7 +201,9 @@ public class ClaimData {
     }
 
     public ClaimData copy() {
-        return new ClaimData(owner, name, new HashSet<>(members),
+        final ClaimData c = new ClaimData(owner, name, new HashSet<>(members),
                 blocksProtected, interactionsProtected, inventoriesProtected);
+        c.lastKnownPosition = lastKnownPosition;
+        return c;
     }
 }

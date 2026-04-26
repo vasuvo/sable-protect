@@ -65,7 +65,8 @@ Anyone may view the info window of any claimed sub-level. However, buttons are s
 
 ```
 --------------------------------------------
-<name>  [Locate]  [Fetch from Out of Bounds]*
+<name>  [Fetch from Out of Bounds]*
+Location: X, Y, Z**
 Blocks:        [PROTECTED / UNPROTECTED]
 Interactions:  [PROTECTED / UNPROTECTED]
 Inventories:   [PROTECTED / UNPROTECTED]
@@ -80,10 +81,9 @@ Members  [Add Member]:
 
 \* "Fetch from Out of Bounds" is only shown when the sub-level is currently outside the world border.
 
-Clickable buttons pre-type or auto-submit the corresponding `/sp` command. Non-owners see the protection toggles as static text rather than buttons. Members see Locate and Fetch but not the editing or membership buttons.
+\*\* "Location" is shown to owners and members. When the sub-level is loaded the coordinates are live; when unloaded the line shows the last-known position (italic + grey). Clicking the coordinate text copies a space-separated `X Y Z` triple to the clipboard, suitable for pasting into `/tp` or similar commands.
 
-### `/sp locate <name>`
-Returns the current coordinates of the named sub-level. Available to the owner and all members.
+Clickable buttons pre-type or auto-submit the corresponding `/sp` command. Non-owners see the protection toggles as static text rather than buttons. Members see Fetch but not the editing or membership buttons.
 
 ### `/sp fetch <name>`
 If the named sub-level is outside the vanilla world border, teleports it to the nearest point just inside the border (approximately 50 blocks inward) and above ground at that location. Physics are then **completely frozen** for 1 minute, giving the owner time to board and shut off engines before the freeze expires. Available to the owner and all members.
@@ -130,7 +130,8 @@ All claims are stored server-side in `<world>/data/sableprotect_claims.dat`, ind
 - `/sp myclaims`, `/sp info <name>`, and `/sp edit <name>` work for claimed sub-levels even when they're not currently loaded.
 - Edits made while a sub-level is unloaded (rename, change owner, toggle changes, member changes) are applied to the sub-level's `userDataTag` automatically the next time it loads.
 - A claim is only dropped when its sub-level is genuinely destroyed (disassembly, merge consumption, etc.) — a chunk unload, dimension change, or server restart never loses tracking.
-- `/sp locate`, `/sp fetch`, and `/sp steal` still require the sub-level to be loaded since they touch its physics state; these report a clear "not loaded" error instead of pretending the claim doesn't exist.
+- `/sp fetch` and `/sp steal` still require the sub-level to be loaded since they touch its physics state; these report a clear "not loaded" error instead of pretending the claim doesn't exist.
+- The `Location` line in `/sp info` shows the last-known position even when the sub-level is unloaded — a snapshot is captured every time a sub-level is added to or removed from a container, so the displayed coordinates are accurate as of the most recent load/unload event.
 
 The info window shows a grey `[unloaded]` annotation next to the title when a claim's sub-level isn't currently loaded so the player understands why the position-dependent buttons are missing.
 
