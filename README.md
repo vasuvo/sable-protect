@@ -2,7 +2,7 @@
 
 Server-side claim and protection for [Sable](https://github.com/RyanHCode/Sable) airships on NeoForge 1.21.1.
 
-Players claim a sub-level by name; the mod prevents anyone but the owner and members from breaking blocks, interacting with controls, opening containers, or disassembling/merging the ship. Per-claim toggles let the owner relax individual categories of protection.
+Players claim a sub-level by name; the mod prevents anyone but the owner and members from breaking blocks, interacting with controls, opening containers, or disassembling/merging the ship. Per-claim toggles let the owner relax individual categories of protection. Contraption-mounted breakers (Create's mechanical drill, Create Simulated's rock cutting wheel) are also blocked from chewing through claimed ships unless they're operated from a friendly contraption.
 
 ## Installation
 
@@ -31,7 +31,7 @@ All commands are prefixed with `/sp`.
 | --- | --- |
 | `/sp edit <name> blocks\|interactions\|inventories protected\|unprotected` | Toggle a protection category. |
 | `/sp edit <name> rename <newname>` | Rename the claim. |
-| `/sp edit <name> changeowner <player>` | Transfer ownership. Online or offline player who has joined the server. |
+| `/sp edit <name> changeowner <player> [<player>]` | Transfer ownership. Two-step confirm — type the new owner's name twice. The previous owner is demoted to a member so they keep access. |
 | `/sp edit <name> addmember <player>` | Add a member. |
 | `/sp edit <name> removemember <player>` | Remove a member. |
 

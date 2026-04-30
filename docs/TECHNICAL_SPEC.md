@@ -63,13 +63,19 @@ dev.aerodev.sableprotect/
 │   ├── ClaimObserver.java          # SubLevelObserver for add/remove tracking
 │   └── SplitInheritanceQueue.java  # Bridges Sable's SplitListener to onSubLevelAdded
 ├── mixin/
-│   └── sim/                        # Simulated-Project packet handler mixins (block client-side bypasses)
-│       ├── AssemblePacketMixin.java
-│       ├── PlaceMergingGluePacketMixin.java
-│       ├── PlaceSpringPacketMixin.java
-│       ├── RopeBreakPacketMixin.java
-│       ├── SteeringWheelPacketMixin.java
-│       └── ThrottleLeverSignalPacketMixin.java
+│   ├── sim/                        # Simulated-Project packet handler mixins (block client-side bypasses)
+│   │   ├── AssemblePacketMixin.java
+│   │   ├── PlaceMergingGluePacketMixin.java
+│   │   ├── PlaceSpringPacketMixin.java
+│   │   ├── RopeBreakPacketMixin.java
+│   │   ├── SteeringWheelPacketMixin.java
+│   │   └── ThrottleLeverSignalPacketMixin.java
+│   └── compat/                     # Compatibility mixins for contraption-mounted breakers
+│       ├── create/
+│       │   ├── BlockBreakingMovementBehaviourMixin.java # Wraps tickBreaker/visitNewPosition to publish MovementContext
+│       │   └── DrillMovementBehaviourMixin.java         # Returns false from canBreak when attribution denies
+│       └── offroad/
+│           └── MultiMiningServerManagerMixin.java       # Cancels addOrRefreshPos for protected positions
 ├── audit/
 │   └── AuditLog.java               # Append-only plain-text log of claim lifecycle events (Phase 15)
 ├── permissions/
@@ -81,7 +87,9 @@ dev.aerodev.sableprotect/
     ├── BypassHelper.java           # Per-player admin-bypass opt-in state (session-only)
     ├── NoMansLand.java             # Config-backed rectangle test (Phase 6)
     ├── Lang.java                   # Server-side string lookup (Phase 8) — bundles en_us.json
-    └── CrewPresence.java           # Shared crew-within-radius check (Phase 12) — used by /sp steal and /sp ground
+    ├── CrewPresence.java           # Shared crew-within-radius check (Phase 12) — used by /sp steal and /sp ground
+    ├── Players.java                # Online + profile-cache name/UUID resolution
+    └── ContraptionAttribution.java # Decides whether a contraption-mounted breaker may break a target block; ThreadLocal MovementContext bridge for the drill mixin
 ```
 
 ---
@@ -235,6 +243,40 @@ runtime Veil is provided by the user's installed Sable / Sim-Project (no new dep
 targets sub-levels by UUID rather than block position and is not yet covered. See the
 DESIGN.md Known Issues section.
 
+## 3b. Mixin-Based Contraption-Breaker Protection
+
+Create's mechanical drill (when mounted on a moving contraption) and Create Simulated's
+rock cutting wheel destroy blocks via `BlockHelper.destroyBlockAs(level, pos, null, ...)`.
+The `null` Player argument short-circuits `BlockEvent.BreakEvent`, so the standard
+`BlockProtectionHandler` never sees these breaks. Three mixins close the gap.
+
+The shared policy lives in `util/ContraptionAttribution.java`. Given a target block and an
+optional breaker anchor `BlockPos`, it returns true (allow) iff one of: target is unclaimed
+or in NML; target's `Blocks` toggle is off; breaker anchor sub-level == target sub-level
+(self-mining); or the breaker's host sub-level is itself claimed and that claim's owner is
+owner-or-member of the target. Breakers anchored in the open world (no host sub-level) are
+denied unless `allowExternalAnchorBreaking` is set. The whole feature is gated by the
+`enableContraptionBreakerProtection` master config toggle.
+
+**Mixins:**
+
+| Mixin | Target | Hook | Notes |
+|---|---|---|---|
+| `BlockBreakingMovementBehaviourMixin` | `com.simibubi.create.content.kinetics.base.BlockBreakingMovementBehaviour` | `@WrapMethod` on `tickBreaker` and `visitNewPosition` | Pushes/pops the current `MovementContext` on a `ThreadLocal` stack so the drill mixin can read it from inside `canBreak`. Affects all subclasses (saws, ploughs, etc.) but only publishes context — the actual deny logic is drill-only. |
+| `DrillMovementBehaviourMixin` | `com.simibubi.create.content.kinetics.drill.DrillMovementBehaviour` | `@Inject` at `canBreak` RETURN, cancellable | Reads the thread-local `MovementContext`, applies the attribution rule, and forces the return to `false` when denied. The base `tickBreaker` then clears its breaking state and unstalls the contraption — drill ship slides past instead of grinding. |
+| `MultiMiningServerManagerMixin` | `dev.ryanhcode.offroad.handlers.server.MultiMiningServerManager` | `@Inject` at `addOrRefreshPos` HEAD, cancellable | The bearing block entity is the `MultiMiningSupplier`; its `getLocation()` returns the bearing's world position, used as the anchor. Returning false here prevents `BlockBreakingData` creation entirely — no progress, no client-side mining-progress packet. |
+
+All three mixins use `@Mixin(targets = "...", remap = false)` with stringly-typed targets,
+so sable-protect doesn't need Create or offroad on its compile classpath. The
+`MovementContext` reference inside `BlockBreakingMovementBehaviourMixin` uses
+`@Coerce Object`, and field access on `MovementContext` / `Contraption` / supplier is done
+reflectively in `ContraptionAttribution`.
+
+**Why drill-only and not the whole `BlockBreakingMovementBehaviour` family:** saws, ploughs,
+rollers, and harvesters are valuable for on-ship farms and surface clearing; the grief risk
+is far lower than for drills, which can chew through arbitrary geometry. Deployers fire
+`BreakEvent` via their fake player and are already covered by `BlockProtectionHandler`.
+
 ## 4. Protection Event Handlers
 
 All protection handlers follow the same pattern:
@@ -316,7 +358,7 @@ Commands are registered via `RegisterCommandsEvent` on the NeoForge event bus.
 │   ├── interactions <protected|unprotected>
 │   ├── inventories <protected|unprotected>
 │   ├── rename <newname: string>
-│   ├── changeowner <player: EntityArgument>
+│   ├── changeowner <player: string> [<player: string>]
 │   ├── addmember <player: EntityArgument>
 │   └── removemember <player: EntityArgument>
 ├── unclaim <name: string> [CONFIRM]
@@ -486,6 +528,13 @@ freezeDurationSeconds = 60
 
 # How far inside the world border to place a fetched sub-level, in blocks
 fetchBorderInset = 50
+
+[contraptionBreakers]
+# Master toggle for drill / rock-cutting-wheel protection
+enabled = true
+# Allow breakers anchored in the open world (no host sub-level) to damage claimed
+# sub-levels. Off by default — this is the "park a drill ship next to a claim" attack.
+allowExternalAnchorBreaking = false
 ```
 
 These are intentionally minimal. Most behavior is per-claim (stored in `userDataTag`), not global config.
@@ -536,7 +585,7 @@ These are intentionally minimal. Most behavior is per-claim (stored in `userData
 - `/sp edit <name> removemember <player>`
 - `/sp edit <name> blocks|interactions|inventories protected|unprotected`
 - `/sp edit <name> rename <newname>`
-- `/sp edit <name> changeowner <player>`
+- `/sp edit <name> changeowner <player> [<player>]` (two-step confirm; previous owner demoted to member)
 - `/sp myclaims`
 - Interactive chat info window with click events (role-based button visibility)
 - Tab completion for claim names in all commands

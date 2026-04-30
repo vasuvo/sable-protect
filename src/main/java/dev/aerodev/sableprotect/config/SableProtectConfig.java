@@ -12,6 +12,9 @@ public final class SableProtectConfig {
     public static final ModConfigSpec.IntValue ABSENCE_RADIUS;
     public static final ModConfigSpec.IntValue ADMIN_BYPASS_PERMISSION_LEVEL;
 
+    public static final ModConfigSpec.BooleanValue ENABLE_CONTRAPTION_BREAKER_PROTECTION;
+    public static final ModConfigSpec.BooleanValue ALLOW_EXTERNAL_ANCHOR_BREAKING;
+
     public static final ModConfigSpec.BooleanValue NO_MANS_LAND_ENABLED;
     public static final ModConfigSpec.IntValue NO_MANS_LAND_MIN_X;
     public static final ModConfigSpec.IntValue NO_MANS_LAND_MAX_X;
@@ -46,6 +49,30 @@ public final class SableProtectConfig {
                          "Vanilla permission levels: 0 = none, 2 = gamemasters, 3 = admins, 4 = full ops.",
                          "Set to 5 (above max) to disable the admin bypass entirely.")
                 .defineInRange("adminBypassPermissionLevel", 4, 0, 5);
+
+        builder.push("contraptionBreakers");
+        builder.comment("Protection against contraption-mounted block breakers that bypass the",
+                        "vanilla BlockEvent.BreakEvent path. Currently covers Create's mechanical",
+                        "drill and Create Simulated's rock cutting wheel. Saws, ploughs, rollers,",
+                        "and harvesters are intentionally left unprotected — their use cases",
+                        "(on-ship farms, surface clearing) are valuable enough that the grief",
+                        "risk doesn't justify blocking them.");
+
+        ENABLE_CONTRAPTION_BREAKER_PROTECTION = builder
+                .comment("Master toggle for drill / rock-cutting-wheel protection. When enabled,",
+                         "a breaker can only damage a claimed sub-level if its host contraption",
+                         "is anchored on the same sub-level, or its host is owned by an owner or",
+                         "member of the target's claim.")
+                .define("enabled", true);
+
+        ALLOW_EXTERNAL_ANCHOR_BREAKING = builder
+                .comment("Whether breakers anchored in the open world (no host sub-level) may",
+                         "still damage claimed sub-levels. Off by default since this is the",
+                         "'park a drill ship next to someone's claim' attack vector. Turn on if",
+                         "you have legitimate stationary mining setups that target ships.")
+                .define("allowExternalAnchorBreaking", false);
+
+        builder.pop();
 
         builder.push("noMansLand");
         builder.comment("A rectangular XZ region in which all claim protections are suspended.",

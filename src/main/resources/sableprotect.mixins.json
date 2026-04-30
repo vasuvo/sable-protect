@@ -12,7 +12,10 @@
     "sim.PlaceSpringPacketMixin",
     "sim.RopeBreakPacketMixin",
     "sim.SteeringWheelPacketMixin",
-    "sim.ThrottleLeverSignalPacketMixin"
+    "sim.ThrottleLeverSignalPacketMixin",
+    "compat.create.BlockBreakingMovementBehaviourMixin",
+    "compat.create.DrillMovementBehaviourMixin",
+    "compat.offroad.MultiMiningServerManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

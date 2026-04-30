@@ -18,7 +18,7 @@ Covers any action that could result in the destruction or splitting of the sub-l
 This restriction is always active and cannot be loosened — not even for members. Only the owner can perform these actions.
 
 ### Blocks *(configurable toggle)*
-Covers placing and breaking individual blocks on the sub-level. If block protection is enabled, all explosions are also protected against.
+Covers placing and breaking individual blocks on the sub-level. If block protection is enabled, all explosions are also protected against, and contraption-mounted block-breakers (Create's mechanical drill, Create Simulated's rock cutting wheel) are blocked from drilling through claimed sub-levels — see *Contraption breakers* below.
 
 ### Interactions *(configurable toggle)*
 Covers all standard block interactions not covered by another category (e.g., buttons, levers, crafting tables, furnaces, etc.). Doors and fence gates are always interactable regardless of this toggle, since they are used purely for player movement. Block placement is not affected by this toggle — it is controlled exclusively by the Blocks permission.
@@ -109,8 +109,8 @@ The three toggles are linked by an invariant: **a ship cannot have Blocks unprot
 ### `/sp edit <name> rename <newname>`
 Renames the sub-level. The new name must not already be taken globally. Owner only.
 
-### `/sp edit <name> changeowner <player>`
-Transfers ownership of the sub-level to another player. Owner only.
+### `/sp edit <name> changeowner <player> [<player>]`
+Transfers ownership of the sub-level to another player. Owner only. Two-step confirmation: `/sp edit <name> changeowner <player>` previews the change and asks the user to re-type the new owner's name; `/sp edit <name> changeowner <player> <player>` executes when the two names match exactly. The previous owner is demoted to a member so they retain access on the ship.
 
 ### `/sp edit <name> addmember <player>`
 Adds a player as a member. Owner only.
@@ -129,6 +129,25 @@ Steals ownership of a claimed sub-level inside No Man's Land. Two-step confirmat
 - The player isn't already the owner.
 
 On success, ownership transfers to the issuing player, the member list is wiped, and the name + protection toggles are preserved. The previous owner and any prior members receive a red chat warning naming the player who took their ship; offline targets are not notified.
+
+---
+
+## Contraption breakers
+
+Most ways of breaking a block flow through `BlockEvent.BreakEvent`, which the Blocks toggle covers via the standard event handler. Two block-breakers in this mod ecosystem don't:
+
+- Create's **Mechanical Drill** when mounted on a moving contraption — destroys blocks via `BlockHelper.destroyBlockAs(level, pos, null, ...)`. The null player short-circuits the event.
+- Create Simulated's **Rock Cutting Wheel** (driven by a Borehead Bearing) — submits candidate positions to a server-wide `MultiMiningServerManager` that aggregates progress and destroys blocks the same way, again with no player context.
+
+Both are gated by the Blocks toggle (so an owner who unprotects Blocks accepts that breakers can drill into their ship). When Blocks is protected, a contraption-mounted drill or rock cutting wheel may break a block in a claimed sub-level only if:
+
+1. Its host contraption is anchored on the **same** sub-level as the target — drilling your own ship is always allowed, including self-disassembly fail-safes.
+2. Or its host sub-level is itself claimed, and that claim's owner is the owner-or-member of the target's claim — friendly excavators (e.g. a co-owner's mining ship) work as expected.
+3. Otherwise the break is denied. For drills, the contraption stalls cleanly on the protected block and resumes movement past it; for rock cutting wheels, the position is rejected at intake before any progress accumulates.
+
+Breakers anchored in the open world (no host sub-level — e.g. a stationary drill assembly on bedrock) cannot be attributed. They are denied by default; flip `allowExternalAnchorBreaking` in the config if you need stationary external mining setups to work against ships.
+
+Other Create breakers (saws, ploughs, rollers, harvesters, deployers) are intentionally **not** restricted. Their use cases — on-ship farms, surface clearing, deployer-driven crafting — are valuable enough that the grief risk doesn't justify blocking them. The Deployer is the exception that's trivially handled: it uses a fake player and so does fire `BlockEvent.BreakEvent`, meaning it's already covered by the standard handler.
 
 ---
 

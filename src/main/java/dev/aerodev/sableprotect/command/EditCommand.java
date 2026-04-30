@@ -74,14 +74,22 @@ public final class EditCommand {
                                                 StringArgumentType.getString(ctx, "name"),
                                                 StringArgumentType.getString(ctx, "newname"),
                                                 registry))))
-                        // /sp edit <name> changeowner <player>
+                        // /sp edit <name> changeowner <player> [<player-confirm>]
+                        // First form prints a confirm prompt; second form executes when the
+                        // two names match exactly (case-sensitive — Mojang names are case-
+                        // insensitive but the player typed it twice, so we hold them to it).
                         .then(Commands.literal("changeowner")
                                 .then(Commands.argument("player", StringArgumentType.string())
                                         .suggests(suggestKnownPlayers())
-                                        .executes(ctx -> executeChangeOwner(ctx.getSource().getPlayerOrException(),
+                                        .executes(ctx -> promptChangeOwner(ctx.getSource().getPlayerOrException(),
                                                 StringArgumentType.getString(ctx, "name"),
-                                                StringArgumentType.getString(ctx, "player"),
-                                                registry))))
+                                                StringArgumentType.getString(ctx, "player")))
+                                        .then(Commands.argument("confirm", StringArgumentType.string())
+                                                .executes(ctx -> executeChangeOwner(ctx.getSource().getPlayerOrException(),
+                                                        StringArgumentType.getString(ctx, "name"),
+                                                        StringArgumentType.getString(ctx, "player"),
+                                                        StringArgumentType.getString(ctx, "confirm"),
+                                                        registry)))))
                         // /sp edit <name> addmember <player>
                         .then(Commands.literal("addmember")
                                 .then(Commands.argument("player", StringArgumentType.string())
@@ -192,8 +200,23 @@ public final class EditCommand {
         return 1;
     }
 
+    /** Show a confirm prompt asking the user to re-type the new owner's name. No mutation. */
+    private static int promptChangeOwner(final ServerPlayer player, final String name,
+                                          final String targetName) {
+        player.displayClientMessage(
+                Lang.tr("sableprotect.edit.changeowner_confirm", name, targetName), false);
+        return 1;
+    }
+
     private static int executeChangeOwner(final ServerPlayer player, final String name,
-                                          final String targetName, final ClaimRegistry registry) {
+                                          final String targetName, final String confirmName,
+                                          final ClaimRegistry registry) {
+        if (!targetName.equals(confirmName)) {
+            player.displayClientMessage(
+                    Lang.tr("sableprotect.edit.changeowner_mismatch", confirmName, targetName), false);
+            return 0;
+        }
+
         final ResolvedClaim resolved = resolve(player, name, registry);
         if (resolved == null) return 0;
 
@@ -207,8 +230,10 @@ public final class EditCommand {
 
         final java.util.UUID previousOwner = resolved.data.getOwner();
         resolved.data.setOwner(newOwnerUuid);
-        // Remove new owner from members if they were a member
+        // Remove new owner from members if they were a member; demote previous owner to member
+        // so they retain access rather than losing it entirely.
         resolved.data.getMembers().remove(newOwnerUuid);
+        if (previousOwner != null) resolved.data.getMembers().add(previousOwner);
         persist(registry, resolved);
 
         AuditLog.logTransfer(player.getServer(), name, resolved.subLevelId,

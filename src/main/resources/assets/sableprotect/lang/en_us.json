@@ -24,6 +24,8 @@
   "sableprotect.edit.already_member": "%s is already a member.",
   "sableprotect.edit.not_a_member": "%s is not a member.",
   "sableprotect.edit.unknown_player": "No known player named '%s'. Players must have logged in to the server at least once.",
+  "sableprotect.edit.changeowner_confirm": "You are about to transfer ownership of '%s' to '%s'. Check the spelling carefully — to confirm, run /sp edit %1$s changeowner %2$s %2$s.",
+  "sableprotect.edit.changeowner_mismatch": "Confirmation name '%s' does not match '%s'. Ownership not transferred.",
   "sableprotect.myclaims.none": "You have no claims.",
   "sableprotect.myclaims.owned": "Owned:",
   "sableprotect.myclaims.member_of": "Member of:",
