@@ -77,7 +77,8 @@ dev.aerodev.sableprotect/
 │       ├── offroad/
 │       │   └── MultiMiningServerManagerMixin.java       # Cancels addOrRefreshPos for protected positions
 │       └── vanilla/
-│           ├── DispenserBlockMixin.java                 # Cancels dispense for fire-/lava-placing items targeting protected claims
+│           ├── BucketItemMixin.java                     # Cancels emptyContents + pickupBlock for protected claims; covers held + dispenser fluid paths
+│           ├── DispenserBlockMixin.java                 # Cancels flint & steel dispense targeting protected claims
 │           └── SmallFireballMixin.java                  # Cancels fire-block placement at fireball impact inside protected claims
 ├── audit/
 │   └── AuditLog.java               # Append-only plain-text log of claim lifecycle events (Phase 15)
@@ -290,12 +291,14 @@ by two small vanilla mixins:
 
 | Mixin | Target | Hook | Notes |
 |---|---|---|---|
-| `DispenserBlockMixin` | `net.minecraft.world.level.block.DispenserBlock` | `@Inject` at the `DispenseItemBehavior.dispense` INVOKE inside `dispenseFrom`, cancellable | Captures the picked `ItemStack` via `@Local`. Cancels for flint &amp; steel and lava bucket targeting a Blocks-protected claim — both write blocks at `pos.relative(facing)` directly. Fire charge is intentionally not in this set; its dispenser path spawns a projectile that may travel before placing fire. |
+| `BucketItemMixin` | `net.minecraft.world.item.BucketItem` | `@Inject` at `emptyContents(...)` HEAD + `@WrapOperation` on `BucketPickup.pickupBlock` inside `use(...)`, both cancellable | Cancelling `RightClickBlock` alone is insufficient for buckets — the vanilla client follows up with `ServerboundUseItemPacket` that fires `RightClickItem` and runs `BucketItem.use` even after cancellation. We hook the actual mutation points instead. The deprecated 4-arg `emptyContents` overload that `DispenseFluidContainer` uses delegates to the 5-arg version, so the single inject covers both held and dispenser empties. `null` Player (dispenser) is denied unconditionally inside protected claims. |
+| `DispenserBlockMixin` | `net.minecraft.world.level.block.DispenserBlock` | `@Inject` at the `DispenseItemBehavior.dispense` INVOKE inside `dispenseFrom`, cancellable | Captures the picked `ItemStack` via `@Local`. Cancels for flint &amp; steel only — the bucket-empty and fireball paths are caught at their own mutation points. |
 | `SmallFireballMixin` | `net.minecraft.world.entity.projectile.SmallFireball` | `@Inject` at `onHitBlock` HEAD, cancellable | Cancels just the fire-block placement at impact; the fireball itself still flies, hurts entities, and discards normally. Fires at blocks outside any claim are unaffected. |
 
-Both gate by the **Blocks** toggle. Vanilla mixins use the standard `@Mixin(VanillaClass.class)`
+All gate by the **Blocks** toggle. Vanilla mixins use the standard `@Mixin(VanillaClass.class)`
 form (no `targets =` string, since the classes are on the compile classpath). MixinExtras `@Local`
-captures the picked-slot itemstack inside `dispenseFrom`.
+captures the picked-slot itemstack inside `dispenseFrom`; `@WrapOperation` lets the bucket pickup
+mixin gate the actual `pickupBlock` invoke without re-doing the bucket's internal raytrace.
 
 ## 4. Protection Event Handlers
 

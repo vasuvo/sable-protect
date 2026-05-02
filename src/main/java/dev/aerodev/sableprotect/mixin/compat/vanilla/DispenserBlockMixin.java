@@ -17,22 +17,25 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Cancels dispenser actions that would place a block inside a claimed sub-level
- * via a path that bypasses {@code BlockEvent.EntityPlaceEvent}. Specifically:
- * <ul>
- *   <li>Flint &amp; steel — the vanilla dispense behavior calls
- *       {@code serverlevel.setBlockAndUpdate(...)} with a fire state directly.</li>
- *   <li>Lava bucket — {@code DispenseFluidContainer} calls
- *       {@code BucketItem.emptyContents}, which raw-{@code setBlock}s the fluid.</li>
- * </ul>
+ * via a path that bypasses {@code BlockEvent.EntityPlaceEvent}. Currently this
+ * is just the flint &amp; steel dispense behavior, which calls
+ * {@code serverlevel.setBlockAndUpdate(...)} with a fire state directly.
  *
- * <p>Fire charge dispensing is intentionally <em>not</em> cancelled here — the
- * dispenser fires a {@code SmallFireball} projectile that may land outside the
- * claim. {@link SmallFireballMixin} catches it at impact instead.
+ * <p>Other dispenser-driven paths are caught at their actual mutation point
+ * instead, since cancelling at intake here is too coarse:
+ * <ul>
+ *   <li>Lava / water bucket dispense → {@code BucketItemMixin} on
+ *       {@code emptyContents(...)} — also covers held-bucket and the deprecated
+ *       4-arg overload that {@code DispenseFluidContainer} calls into.</li>
+ *   <li>Fire charge dispense → {@link SmallFireballMixin} on the projectile's
+ *       block-impact, since the projectile may travel outside the claim before
+ *       landing.</li>
+ * </ul>
  *
  * <p>The cancel point is the {@code dispense} INVOKE inside
  * {@code DispenserBlock.dispenseFrom} — by that point the random slot has been
  * picked and we know which item is about to be dispensed. Cancelling makes the
- * dispenser a no-op for that tick (no item consumed, no projectile spawned),
+ * dispenser a no-op for that tick (no item consumed, no fire placed),
  * matching the behavior of a dispenser containing an item with no behavior.
  */
 @Mixin(DispenserBlock.class)
@@ -59,9 +62,9 @@ public class DispenserBlockMixin {
     }
 
     /** Items whose dispenser behavior writes a block at {@code pos.relative(facing)}
-     *  via raw setBlock. Fire charge is NOT here — it spawns a projectile that may
-     *  travel before placing fire, and {@link SmallFireballMixin} handles that path. */
+     *  via raw setBlock. Buckets and fire charges have item-/projectile-level mixins
+     *  for their own paths; only flint &amp; steel needs to be caught here. */
     private static boolean isBlockPlacingDispenseItem(final ItemStack stack) {
-        return stack.is(Items.FLINT_AND_STEEL) || stack.is(Items.LAVA_BUCKET);
+        return stack.is(Items.FLINT_AND_STEEL);
     }
 }

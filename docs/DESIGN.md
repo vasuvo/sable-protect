@@ -161,12 +161,13 @@ Coverage as of 0.16.0:
 |---|---|---|
 | Held flint &amp; steel | `RightClickBlock` handler in `BlockProtectionHandler`, gated by Blocks toggle | Independent of the Interactions check |
 | Held fire charge | same | |
-| Held lava bucket | same | Water/snow buckets intentionally unaffected — not fire vectors |
+| Held filled bucket (lava, water, powdered snow) | Mixin on `BucketItem.emptyContents(...)` HEAD | RightClickBlock cancellation alone is insufficient: the vanilla client also sends a follow-up `ServerboundUseItemPacket` that fires `RightClickItem` and runs `BucketItem.use` regardless. The mixin gates at the actual mutation point. |
+| Held empty bucket pickup of a fluid | Mixin wraps the `BucketPickup.pickupBlock(...)` invoke inside `BucketItem.use` | Treats fluid removal from a ship as a Blocks-toggle violation. |
 | Dispenser-fired flint &amp; steel | Mixin into `DispenserBlock.dispenseFrom` cancels the dispense at intake | |
-| Dispenser-emptied lava bucket | same | |
-| Dispenser-fired fire charge | Mixin into `SmallFireball.onHitBlock` cancels fire-block placement at impact | The fireball still flies and discards normally — only the fire placement is blocked, so legitimate uses targeting blocks outside the claim are unaffected |
+| Dispenser-emptied bucket | Same `BucketItem.emptyContents` mixin — the deprecated 4-arg overload that `DispenseFluidContainer` calls into delegates to the 5-arg version | Dispenser path receives a `null` Player, which the mixin treats as "no role to verify" and denies unconditionally inside protected claims. |
+| Dispenser-fired fire charge | Mixin into `SmallFireball.onHitBlock` cancels fire-block placement at impact | The fireball still flies and discards normally — only the fire placement is blocked, so legitimate uses targeting blocks outside the claim are unaffected. |
 
-All are gated by the **Blocks** toggle (an owner who unprotects Blocks accepts that fire and lava can be placed inside the ship). Other vanilla projectile / dispenser side-effects (water buckets, snowballs, eggs) are not currently restricted; they don't damage the ship and the use cases for blocking them are weaker.
+All are gated by the **Blocks** toggle (an owner who unprotects Blocks accepts that fire, lava, and other fluid changes can be made inside the ship). The bucket mixin covers all fluid types (lava, water, powdered snow) because the gate is structural: any fluid placement or pickup against a protected ship is a Blocks-toggle violation. Other vanilla projectile / dispenser side-effects (snowballs, eggs, ender pearls) remain unrestricted; they don't materially damage the ship.
 
 ---
 

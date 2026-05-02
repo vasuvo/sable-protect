@@ -54,18 +54,24 @@ public class BlockProtectionHandler {
     }
 
     /**
-     * Gate held items that create blocks (fire, lava) without going through the standard
-     * BlockItem placement pathway — flint &amp; steel, fire charge, and lava bucket all
+     * Gate held items that create fire blocks without going through the standard
+     * {@code BlockItem} placement pathway — flint &amp; steel and fire charge both
      * call {@code level.setBlock(...)} directly, so {@code BlockEvent.EntityPlaceEvent}
      * never fires and the place handler above misses them. We catch them at
-     * {@code RightClickBlock} (which always fires for item-on-block) and gate by the
-     * Blocks toggle independently of Interactions, so an owner who allows visitors to
-     * press buttons but not damage the ship doesn't accidentally allow fire grief.
+     * {@code RightClickBlock} and gate by the Blocks toggle independently of
+     * Interactions, so an owner who allows visitors to press buttons but not damage
+     * the ship doesn't accidentally allow fire grief.
      *
      * <p>Runs at HIGH priority so it precedes {@link InteractionProtectionHandler} —
      * the latter would also cancel via the Interactions toggle when set, but we want
      * the cancel/denied-message path to come from the right reason regardless of
      * which toggle is the gate.
+     *
+     * <p>Buckets are deliberately <em>not</em> covered here. The vanilla client follows
+     * up {@code ServerboundUseItemOnPacket} with {@code ServerboundUseItemPacket}, which
+     * fires {@code RightClickItem} (not RightClickBlock) and runs {@code BucketItem.use}
+     * even after we cancel here. The lava-bucket / empty-bucket paths are caught
+     * directly at the mutation point by {@code mixin/compat/vanilla/BucketItemMixin}.
      */
     @SubscribeEvent(priority = EventPriority.HIGH)
     public void onRightClickWithBlockPlacingItem(final PlayerInteractEvent.RightClickBlock event) {
@@ -90,12 +96,10 @@ public class BlockProtectionHandler {
     }
 
     /** Items that write a block via {@code level.setBlock(...)} without firing
-     *  {@code EntityPlaceEvent}. Kept narrow on purpose — water/snow buckets are not
-     *  fire vectors and aren't included; powdered snow likewise. Add new entries only
-     *  when you've verified the item bypasses the place event. */
+     *  {@code EntityPlaceEvent} <em>and</em> can be reliably cancelled by cancelling
+     *  {@code RightClickBlock}. Add new entries only after verifying both. */
     private static boolean isBlockPlacingItem(final ItemStack stack) {
         return stack.is(Items.FLINT_AND_STEEL)
-                || stack.is(Items.FIRE_CHARGE)
-                || stack.is(Items.LAVA_BUCKET);
+                || stack.is(Items.FIRE_CHARGE);
     }
 }
