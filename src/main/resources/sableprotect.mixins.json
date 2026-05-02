@@ -15,7 +15,9 @@
     "sim.ThrottleLeverSignalPacketMixin",
     "compat.create.BlockBreakingMovementBehaviourMixin",
     "compat.create.DrillMovementBehaviourMixin",
-    "compat.offroad.MultiMiningServerManagerMixin"
+    "compat.offroad.MultiMiningServerManagerMixin",
+    "compat.vanilla.DispenserBlockMixin",
+    "compat.vanilla.SmallFireballMixin"
   ],
   "injectors": {
     "defaultRequire": 1

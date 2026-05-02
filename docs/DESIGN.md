@@ -18,7 +18,7 @@ Covers any action that could result in the destruction or splitting of the sub-l
 This restriction is always active and cannot be loosened — not even for members. Only the owner can perform these actions.
 
 ### Blocks *(configurable toggle)*
-Covers placing and breaking individual blocks on the sub-level. If block protection is enabled, all explosions are also protected against, and contraption-mounted block-breakers (Create's mechanical drill, Create Simulated's rock cutting wheel) are blocked from drilling through claimed sub-levels — see *Contraption breakers* below.
+Covers placing and breaking individual blocks on the sub-level. If block protection is enabled, all explosions are also protected against, contraption-mounted block-breakers (Create's mechanical drill, Create Simulated's rock cutting wheel) are blocked from drilling through claimed sub-levels (see *Contraption breakers* below), and items that create blocks via paths that bypass `BlockEvent.EntityPlaceEvent` — flint &amp; steel, fire charge, lava bucket, plus their dispenser equivalents and dispenser-fired fireballs — are also denied (see *Fire and fluid placement* below).
 
 ### Interactions *(configurable toggle)*
 Covers all standard block interactions not covered by another category (e.g., buttons, levers, crafting tables, furnaces, etc.). Doors and fence gates are always interactable regardless of this toggle, since they are used purely for player movement. Block placement is not affected by this toggle — it is controlled exclusively by the Blocks permission.
@@ -148,6 +148,25 @@ Both are gated by the Blocks toggle (so an owner who unprotects Blocks accepts t
 Breakers anchored in the open world (no host sub-level — e.g. a stationary drill assembly on bedrock) cannot be attributed. They are denied by default; flip `allowExternalAnchorBreaking` in the config if you need stationary external mining setups to work against ships.
 
 Other Create breakers (saws, ploughs, rollers, harvesters, deployers) are intentionally **not** restricted. Their use cases — on-ship farms, surface clearing, deployer-driven crafting — are valuable enough that the grief risk doesn't justify blocking them. The Deployer is the exception that's trivially handled: it uses a fake player and so does fire `BlockEvent.BreakEvent`, meaning it's already covered by the standard handler.
+
+---
+
+## Fire and fluid placement
+
+A handful of vanilla items write blocks by calling `level.setBlock(...)` directly — never going through `BlockItem.placeBlock` and so never firing `BlockEvent.EntityPlaceEvent`. They look like interactions to NeoForge (they fire `RightClickBlock`), so the Interactions toggle catches them as a side-effect, but an owner who relaxes Interactions while keeping Blocks protected has historically been left exposed. Worse, the dispenser-fired versions skip `RightClickBlock` entirely.
+
+Coverage as of 0.16.0:
+
+| Vector | How it's caught | Notes |
+|---|---|---|
+| Held flint &amp; steel | `RightClickBlock` handler in `BlockProtectionHandler`, gated by Blocks toggle | Independent of the Interactions check |
+| Held fire charge | same | |
+| Held lava bucket | same | Water/snow buckets intentionally unaffected — not fire vectors |
+| Dispenser-fired flint &amp; steel | Mixin into `DispenserBlock.dispenseFrom` cancels the dispense at intake | |
+| Dispenser-emptied lava bucket | same | |
+| Dispenser-fired fire charge | Mixin into `SmallFireball.onHitBlock` cancels fire-block placement at impact | The fireball still flies and discards normally — only the fire placement is blocked, so legitimate uses targeting blocks outside the claim are unaffected |
+
+All are gated by the **Blocks** toggle (an owner who unprotects Blocks accepts that fire and lava can be placed inside the ship). Other vanilla projectile / dispenser side-effects (water buckets, snowballs, eggs) are not currently restricted; they don't damage the ship and the use cases for blocking them are weaker.
 
 ---
 

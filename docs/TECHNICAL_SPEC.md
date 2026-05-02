@@ -70,12 +70,15 @@ dev.aerodev.sableprotect/
 │   │   ├── RopeBreakPacketMixin.java
 │   │   ├── SteeringWheelPacketMixin.java
 │   │   └── ThrottleLeverSignalPacketMixin.java
-│   └── compat/                     # Compatibility mixins for contraption-mounted breakers
+│   └── compat/                     # Compatibility mixins for paths that bypass standard NeoForge events
 │       ├── create/
 │       │   ├── BlockBreakingMovementBehaviourMixin.java # Wraps tickBreaker/visitNewPosition to publish MovementContext
 │       │   └── DrillMovementBehaviourMixin.java         # Returns false from canBreak when attribution denies
-│       └── offroad/
-│           └── MultiMiningServerManagerMixin.java       # Cancels addOrRefreshPos for protected positions
+│       ├── offroad/
+│       │   └── MultiMiningServerManagerMixin.java       # Cancels addOrRefreshPos for protected positions
+│       └── vanilla/
+│           ├── DispenserBlockMixin.java                 # Cancels dispense for fire-/lava-placing items targeting protected claims
+│           └── SmallFireballMixin.java                  # Cancels fire-block placement at fireball impact inside protected claims
 ├── audit/
 │   └── AuditLog.java               # Append-only plain-text log of claim lifecycle events (Phase 15)
 ├── permissions/
@@ -277,6 +280,23 @@ rollers, and harvesters are valuable for on-ship farms and surface clearing; the
 is far lower than for drills, which can chew through arbitrary geometry. Deployers fire
 `BreakEvent` via their fake player and are already covered by `BlockProtectionHandler`.
 
+## 3c. Mixin-Based Fire / Fluid Placement Protection
+
+A handful of vanilla items write blocks via `level.setBlock(...)` without going through
+`BlockItem.placeBlock`, so `BlockEvent.EntityPlaceEvent` never fires. Held uses still post
+`PlayerInteractEvent.RightClickBlock` and are picked up by the high-priority handler in
+`BlockProtectionHandler`. The dispenser-driven equivalents bypass that too and are covered
+by two small vanilla mixins:
+
+| Mixin | Target | Hook | Notes |
+|---|---|---|---|
+| `DispenserBlockMixin` | `net.minecraft.world.level.block.DispenserBlock` | `@Inject` at the `DispenseItemBehavior.dispense` INVOKE inside `dispenseFrom`, cancellable | Captures the picked `ItemStack` via `@Local`. Cancels for flint &amp; steel and lava bucket targeting a Blocks-protected claim — both write blocks at `pos.relative(facing)` directly. Fire charge is intentionally not in this set; its dispenser path spawns a projectile that may travel before placing fire. |
+| `SmallFireballMixin` | `net.minecraft.world.entity.projectile.SmallFireball` | `@Inject` at `onHitBlock` HEAD, cancellable | Cancels just the fire-block placement at impact; the fireball itself still flies, hurts entities, and discards normally. Fires at blocks outside any claim are unaffected. |
+
+Both gate by the **Blocks** toggle. Vanilla mixins use the standard `@Mixin(VanillaClass.class)`
+form (no `targets =` string, since the classes are on the compile classpath). MixinExtras `@Local`
+captures the picked-slot itemstack inside `dispenseFrom`.
+
 ## 4. Protection Event Handlers
 
 All protection handlers follow the same pattern:
@@ -294,6 +314,7 @@ All protection handlers follow the same pattern:
 - `BlockEvent.BreakEvent` — block breaking
 - `BlockEvent.EntityPlaceEvent` — block placement
 - `ExplosionEvent.Detonate` — explosion damage (remove protected blocks from affected list)
+- `PlayerInteractEvent.RightClickBlock` (HIGH priority) — for items that bypass `EntityPlaceEvent` (flint &amp; steel, fire charge, lava bucket); see "Fire and fluid placement" in DESIGN.md. Companion mixins `compat.vanilla.DispenserBlockMixin` and `compat.vanilla.SmallFireballMixin` cover the dispenser-driven equivalents.
 
 **Check:** `claimData.blocksProtected && role == DEFAULT`
 
