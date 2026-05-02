@@ -72,8 +72,7 @@ dev.aerodev.sableprotect/
 │   │   └── ThrottleLeverSignalPacketMixin.java
 │   └── compat/                     # Compatibility mixins for paths that bypass standard NeoForge events
 │       ├── create/
-│       │   ├── BlockBreakingMovementBehaviourMixin.java # Wraps tickBreaker/visitNewPosition to publish MovementContext
-│       │   └── DrillMovementBehaviourMixin.java         # Returns false from canBreak when attribution denies
+│       │   └── BlockBreakingMovementBehaviourMixin.java # @WrapOperation on canBreak invokes inside tickBreaker / visitNewPosition; drill-only deny via instanceof
 │       ├── offroad/
 │       │   └── MultiMiningServerManagerMixin.java       # Cancels addOrRefreshPos for protected positions
 │       └── vanilla/
@@ -266,15 +265,18 @@ denied unless `allowExternalAnchorBreaking` is set. The whole feature is gated b
 
 | Mixin | Target | Hook | Notes |
 |---|---|---|---|
-| `BlockBreakingMovementBehaviourMixin` | `com.simibubi.create.content.kinetics.base.BlockBreakingMovementBehaviour` | `@WrapMethod` on `tickBreaker` and `visitNewPosition` | Pushes/pops the current `MovementContext` on a `ThreadLocal` stack so the drill mixin can read it from inside `canBreak`. Affects all subclasses (saws, ploughs, etc.) but only publishes context — the actual deny logic is drill-only. |
-| `DrillMovementBehaviourMixin` | `com.simibubi.create.content.kinetics.drill.DrillMovementBehaviour` | `@Inject` at `canBreak` RETURN, cancellable | Reads the thread-local `MovementContext`, applies the attribution rule, and forces the return to `false` when denied. The base `tickBreaker` then clears its breaking state and unstalls the contraption — drill ship slides past instead of grinding. |
+| `BlockBreakingMovementBehaviourMixin` | `com.simibubi.create.content.kinetics.base.BlockBreakingMovementBehaviour` | `@WrapOperation` on the `canBreak` INVOKE inside `tickBreaker` and `visitNewPosition`, with `@Local(argsOnly = true) MovementContext context` | Forces the result to false when the drill (instance check on `DrillMovementBehaviour`) is operating against a target the contraption isn't authorized for. Saws, ploughs, rollers, and harvesters extend the same base but the `instanceof` scopes the deny to drills only — their on-ship farms keep working. The base `tickBreaker` responds to a false `canBreak` by clearing its breaking state and unstalling the contraption, so the drill ship slides past instead of grinding. |
 | `MultiMiningServerManagerMixin` | `dev.ryanhcode.offroad.handlers.server.MultiMiningServerManager` | `@Inject` at `addOrRefreshPos` HEAD, cancellable | The bearing block entity is the `MultiMiningSupplier`; its `getLocation()` returns the bearing's world position, used as the anchor. Returning false here prevents `BlockBreakingData` creation entirely — no progress, no client-side mining-progress packet. |
 
-All three mixins use `@Mixin(targets = "...", remap = false)` with stringly-typed targets,
-so sable-protect doesn't need Create or offroad on its compile classpath. The
-`MovementContext` reference inside `BlockBreakingMovementBehaviourMixin` uses
-`@Coerce Object`, and field access on `MovementContext` / `Contraption` / supplier is done
-reflectively in `ContraptionAttribution`.
+The Create mixin uses the standard `@Mixin(BlockBreakingMovementBehaviour.class)` form
+with real types — Create is on the compile classpath as `compileOnly` (provided at runtime
+by the user's Create install). An earlier 0.15.0 / 0.16.x attempt used stringly-typed
+`@Mixin(targets = "...")` plus `@Coerce Object` plus `@WrapMethod` so sable-protect could
+build without a Create dependency, but that combination silently failed to apply at
+runtime, leaving the drill protection completely inert. The offroad mixin retains the
+stringly-typed form (and reflective `getLocation()` lookup in
+`ContraptionAttribution.tryGetSupplierLocation`) because Create Simulated isn't on a
+maven we can fetch from at build time.
 
 **Why drill-only and not the whole `BlockBreakingMovementBehaviour` family:** saws, ploughs,
 rollers, and harvesters are valuable for on-ship farms and surface clearing; the grief risk

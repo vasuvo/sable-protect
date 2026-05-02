@@ -14,7 +14,6 @@
     "sim.SteeringWheelPacketMixin",
     "sim.ThrottleLeverSignalPacketMixin",
     "compat.create.BlockBreakingMovementBehaviourMixin",
-    "compat.create.DrillMovementBehaviourMixin",
     "compat.offroad.MultiMiningServerManagerMixin",
     "compat.vanilla.BucketItemMixin",
     "compat.vanilla.DispenserBlockMixin",

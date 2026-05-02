@@ -46,6 +46,14 @@ repositories {
         url = 'https://maven.blamejared.com'
     }
 
+    // Create — needed at compile time for the contraption-breaker mixin types
+    // (MovementContext, BlockBreakingMovementBehaviour, DrillMovementBehaviour).
+    // Provided at runtime by the user's Create install.
+    maven {
+        name = 'CreateMod'
+        url = 'https://maven.createmod.net'
+    }
+
     // LuckPerms API — soft dependency; if the user has LuckPerms installed our
     // permission checks delegate to it.
     maven {
@@ -125,6 +133,12 @@ dependencies {
     // LuckPerms — compile-only soft dependency. The bridge class is only loaded when
     // ModList reports LuckPerms is installed, so the mod runs cleanly without it.
     compileOnly("net.luckperms:api:${project.luckperms_version}")
+
+    // Create — compile-only; provided by user's runtime. Needed for the drill
+    // protection mixin to reference MovementContext / DrillMovementBehaviour /
+    // BlockBreakingMovementBehaviour with real types instead of @Coerce Object,
+    // which (combined with stringly-typed @Mixin targets) silently failed to apply.
+    compileOnly("com.simibubi.create:create-${project.minecraft_version}:${project.create_version}") { transitive = false }
 }
 
 def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {

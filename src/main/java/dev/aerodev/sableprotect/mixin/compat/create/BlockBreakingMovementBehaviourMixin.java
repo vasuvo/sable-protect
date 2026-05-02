@@ -1,52 +1,68 @@
 package dev.aerodev.sableprotect.mixin.compat.create;
 
-import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
+import com.simibubi.create.content.contraptions.behaviour.MovementContext;
+import com.simibubi.create.content.kinetics.base.BlockBreakingMovementBehaviour;
+import com.simibubi.create.content.kinetics.drill.DrillMovementBehaviour;
 import dev.aerodev.sableprotect.util.ContraptionAttribution;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.Coerce;
+import org.spongepowered.asm.mixin.injection.At;
 
 /**
- * Wraps {@code BlockBreakingMovementBehaviour.tickBreaker} and {@code visitNewPosition}
- * so the current Create {@code MovementContext} is published on a thread-local while
- * {@code canBreak} runs. The drill-specific mixin reads that thread-local from inside
- * {@code DrillMovementBehaviour.canBreak} to attribute the break to a contraption
- * anchor and decide whether to deny it.
+ * Gates Create's {@code canBreak} checks at every call site inside the base
+ * {@link BlockBreakingMovementBehaviour}. When the actor is a
+ * {@link DrillMovementBehaviour} drilling into a block whose claim doesn't
+ * authorize the host contraption, we force the result to false. The base
+ * {@code tickBreaker} responds to a false {@code canBreak} by clearing the
+ * breaking-progress state and unstalling the contraption — the drill ship
+ * slides past the protected block instead of grinding on it.
  *
- * <p>Saws, ploughs, rollers, and the harvester also extend this class and so will
- * also push/pop the context — but only the drill mixin acts on it. The other
- * breakers remain unrestricted, since their use cases (on-ship farms, decorative
- * clearing) are valuable enough to leave unprotected.
+ * <p>Saws, ploughs, rollers, and the harvester also extend
+ * {@code BlockBreakingMovementBehaviour}, but the per-call instance check
+ * scopes the deny to drills only. Their use cases (on-ship farms, surface
+ * clearing) stay unrestricted.
  *
- * <p>Sable already wraps {@code visitNewPosition} on this class for cross-sub-level
- * routing. Mixin composes multiple {@code @WrapMethod} on the same target into a
- * chain; the order doesn't matter for our purposes because we only need the
- * thread-local to be set whenever {@code canBreak} runs anywhere inside the call.
+ * <p>Sable already wraps {@code visitNewPosition} on this class for
+ * cross-sub-level routing, including a {@code findBreakingPos} lambda that
+ * also calls {@code canBreak}. That lambda lives inside Sable's wrap method
+ * body and is not the INVOKE we hook here, so candidate positions selected
+ * via Sable's lambda may briefly be marked as the drill's target. The very
+ * next {@code tickBreaker} pass re-checks {@code canBreak} via the INVOKE
+ * we do hook and clears the state — no actual block break occurs.
  */
-@Mixin(targets = "com.simibubi.create.content.kinetics.base.BlockBreakingMovementBehaviour", remap = false)
+@Mixin(BlockBreakingMovementBehaviour.class)
 public class BlockBreakingMovementBehaviourMixin {
 
-    @WrapMethod(method = "tickBreaker")
-    private void sableProtect$wrapTickBreaker(@Coerce final Object context,
-                                               final Operation<Void> original) {
-        ContraptionAttribution.pushContext(context);
-        try {
-            original.call(context);
-        } finally {
-            ContraptionAttribution.popContext();
-        }
+    @WrapOperation(
+            method = "tickBreaker",
+            at = @At(value = "INVOKE",
+                     target = "Lcom/simibubi/create/content/kinetics/base/BlockBreakingMovementBehaviour;canBreak(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z"))
+    private boolean sableProtect$gateTickBreakerCanBreak(
+            final BlockBreakingMovementBehaviour self,
+            final Level world, final BlockPos pos, final BlockState state,
+            final Operation<Boolean> original,
+            @Local(argsOnly = true) final MovementContext context) {
+        if (!original.call(self, world, pos, state)) return false;
+        if (!(self instanceof DrillMovementBehaviour)) return true;
+        return ContraptionAttribution.canBreakerBreak(context.world, pos, context.contraption.anchor);
     }
 
-    @WrapMethod(method = "visitNewPosition")
-    private void sableProtect$wrapVisitNewPosition(@Coerce final Object context,
-                                                    final BlockPos pos,
-                                                    final Operation<Void> original) {
-        ContraptionAttribution.pushContext(context);
-        try {
-            original.call(context, pos);
-        } finally {
-            ContraptionAttribution.popContext();
-        }
+    @WrapOperation(
+            method = "visitNewPosition",
+            at = @At(value = "INVOKE",
+                     target = "Lcom/simibubi/create/content/kinetics/base/BlockBreakingMovementBehaviour;canBreak(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Z"))
+    private boolean sableProtect$gateVisitNewPositionCanBreak(
+            final BlockBreakingMovementBehaviour self,
+            final Level world, final BlockPos pos, final BlockState state,
+            final Operation<Boolean> original,
+            @Local(argsOnly = true) final MovementContext context) {
+        if (!original.call(self, world, pos, state)) return false;
+        if (!(self instanceof DrillMovementBehaviour)) return true;
+        return ContraptionAttribution.canBreakerBreak(context.world, pos, context.contraption.anchor);
     }
 }
